@@ -62,6 +62,31 @@ export default
             }
         },
         
+        async creerLocation() {
+        try
+        {
+            const response = await axios.post('/api/v1/models/C_Location', {
+            Address1: this.businessPartner.address,
+            City: this.businessPartner.city || 'Antananarivo',
+            Postal: this.businessPartner.postal || '101',
+            C_Country_ID: { id: 100 }, // Mets ici l’ID réel de ton pays
+            C_Region_ID: { id: 102 }   // Mets l’ID de ta région si nécessaire
+            }, {
+            headers: {
+                Authorization: `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
+            }
+            });
+            return response.data.id;
+        } 
+        catch (error)
+        {
+            console.error('Erreur lors de la création de la localisation :', error);
+            return null;
+        }
+        },
+
+        
         async getPartnerLocations(businessPartnerId) {
             try {
                 // Vérifier que l'ID du partenaire est valide
@@ -105,39 +130,36 @@ export default
         },
         
         async creerPartnerLocation(businessPartnerId) {
-            try {
-                // Vérifier que l'ID du partenaire est valide
-                if (!businessPartnerId) {
-                    throw new Error('ID du partenaire commercial non fourni');
-                }
-                
-                // Créer une adresse pour le partenaire commercial
-                const response = await axios.post('/api/v1/models/C_BPartner_Location', {
-                    C_BPartner_ID: { id: businessPartnerId },
-                    Name: `Adresse de ${this.businessPartner.name}`,
-                    Address: this.businessPartner.address,
-                    Phone: this.businessPartner.phone || '',
-                    IsShipTo: 'Y',
-                    IsBillTo: 'Y',
-                    IsPayFrom: 'Y',
-                    IsRemitTo: 'Y',
-                    IsDefault: 'Y',
-                    C_Location_ID: { id: 0 } // ID générique, à adapter selon votre configuration
-                }, 
-                {
-                    headers: {
-                        Authorization: `Bearer ${this.token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                console.log('Adresse créée avec succès:', response.data);
-                return response.data.id;
-            } catch (error) {
-                console.error('Erreur lors de la création de l\'adresse du partenaire:', error);
-                throw error;
+    try {
+        if (!businessPartnerId) {
+            throw new Error('ID du partenaire commercial non fourni');
+        }
+
+        const response = await axios.post('/api/v1/models/C_BPartner_Location', {
+            C_BPartner_ID: businessPartnerId,
+            C_Location_ID: 1000000, // Adresse fixe
+            Name: `Adresse de ${this.businessPartner.name || 'partenaire'}`,
+            IsShipTo: true,
+            IsBillTo: true,
+            IsPayFrom: true,
+            IsRemitTo: true,
+            // IsDefault: true,
+            AD_Org_ID: 0 // Optionnel selon ton modèle
+        }, {
+            headers: {
+                Authorization: `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
             }
-        },
+        });
+
+        console.log('Adresse partenaire créée avec succès:', response.data);
+        return response.data.id;
+    } catch (error) {
+        console.error('Erreur lors de la création de l\'adresse du partenaire:', error.response?.data || error.message);
+        throw error;
+    }
+},
+
         
         //business partner
         async verifierOuCreerBusinessPartner()
@@ -206,71 +228,90 @@ export default
         },
         
         async creerCommande(businessPartnerId) {
-            try {
-                // Vérifier que businessPartnerId est valide
-                if (!businessPartnerId) {
-                    throw new Error('ID du partenaire commercial non fourni');
-                }
+    try {
+        if (!businessPartnerId) throw new Error('ID du partenaire commercial non fourni');
+        if (!this.panier || this.panier.length === 0) throw new Error('Le panier est vide');
 
-                // Vérifier que le panier n'est pas vide
-                if (!this.panier || this.panier.length === 0) {
-                    throw new Error('Le panier est vide');
-                }
+        // Obtenir les adresses du partenaire
+        let locations = await this.getPartnerLocations(businessPartnerId);
 
-                // Récupérer les adresses du partenaire commercial
-                let locations = await this.getPartnerLocations(businessPartnerId);
-                
-                // Si aucune adresse n'est trouvée, en créer une nouvelle
-                if (locations.length === 0) {
-                    const locationId = await this.creerPartnerLocation(businessPartnerId);
-                    locations = await this.getPartnerLocations(businessPartnerId);
-                }
-                
-                // Vérifier à nouveau si une adresse est disponible
-                if (locations.length === 0) {
-                    throw new Error(`Impossible de créer une adresse pour le partenaire commercial ID: ${businessPartnerId}`);
-                }
-                
-                // Sélectionner l'adresse par défaut ou la première adresse disponible
-                const defaultLocation = locations.find(loc => loc.isDefault) || locations[0];
-                
-                // Construire les lignes de commande à partir du panier
-                const lignesCommande = this.panier.map(item => ({
-                    M_Product_ID: { id: item.id },
-                    QtyOrdered: item.quantity,
-                    PriceActual: item.price || 0,
-                    LineNetAmt: (item.price || 0) * (item.quantity || 0)
-                }));
+        if (locations.length === 0) {
+            await this.creerPartnerLocation(businessPartnerId);
+            locations = await this.getPartnerLocations(businessPartnerId);
+        }
 
-                console.log('Lignes de commande:', lignesCommande);
-                
-                // Créer l'objet de commande avec l'adresse sélectionnée
-                const orderData = {
-                    C_BPartner_ID: { id: businessPartnerId },
-                    C_BPartner_Location_ID: { id: defaultLocation.id },
-                    M_PriceList_ID: { id: 101 },
-                    C_Currency_ID: { id: 100 },
-                    C_PaymentTerm_ID: { id: 105 },
-                    C_OrderLine: lignesCommande
-                };
+        if (locations.length === 0) {
+            throw new Error(`Impossible de créer une adresse pour le partenaire commercial ID: ${businessPartnerId}`);
+        }
 
-                // Envoyer la requête à l'API iDempiere
-                const response = await axios.post('/api/v1/models/C_Order', orderData, {
-                    headers: {
-                        Authorization: `Bearer ${this.token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+        const defaultLocation = locations.find(loc => loc.IsDefault) || locations[0];
 
-                console.log('Commande créée avec succès:', response.data);
-                return response.data.id;
-            } 
-            catch (error) {
-                console.error('Erreur lors de la création de la commande:', error);
-                throw error; // Propager l'erreur pour permettre sa gestion en amont
+        // Étape 1 : Création de la commande (sans lignes)
+        const orderData = {
+            C_BPartner_ID: { id: businessPartnerId },
+            C_BPartner_Location_ID: { id: defaultLocation.id },
+            C_DocTypeTarget_ID: { id: 135}, // Remplace par l'ID réel de ton type de doc
+             // À adapter si nécessaire
+        };
+
+        const response = await axios.post('/api/v1/models/C_Order', orderData, {
+            headers: {
+                Authorization: `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
             }
-        },
-        
+        });
+
+        const orderId = response.data.id;
+        console.log('Commande créée avec succès, ID:', orderId);
+
+        // Étape 2 : valider la commande (changer son statut de DR → CO)
+        // await axios.put(`/api/v1/models/C_Order/${orderId}`, {
+        //     // C_Order_ID: { id: orderId },
+        //     DocStatus: { id: "CO" }
+        //     }, {
+        //     headers: {
+        //         Authorization: `Bearer ${this.token}`,
+        //         'Content-Type': 'application/json'
+        //     }
+        //     });
+
+        console.log('Commande validée avec succès, ID:', orderId);
+
+        // Étape 2 : Ajouter les lignes à la commande
+        for (let i = 0; i < this.panier.length; i++) {
+            const item = this.panier[i];
+            const orderLineData = {
+                C_Order_ID: { id: orderId },
+                M_Product_ID: { id: item.id },
+                QtyOrdered: item.quantity,
+                PriceList: item.price,
+                PriceActual: item.price,
+                PriceEntered: item.price,  // Assurez-vous que ce champ est défini
+                // C_Tax_ID: { id: yourTaxID },  // ID de taxe approprié
+                // LineNetAmt: lineNetAmt, 
+                        Line: (i + 1) * 10
+            };
+            console.log(item.price, item.quantity);
+
+            await axios.post('/api/v1/models/C_OrderLine', orderLineData, {
+                headers: {
+                    Authorization: `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+
+            console.log(`Ligne ${i + 1} ajoutée à la commande.`);
+        }
+
+        return orderId;
+
+    } catch (error) {
+        console.error('Erreur lors de la validation de la commande:', error.response?.data || error.message);
+        throw error;
+    }
+},
+
         //relié au panier
         updateQuantity(id, newQuantity)
         {
