@@ -1,10 +1,6 @@
-<script setup>
-import Window from './components/Window.vue';
-</script>
-
 <template>
- <Window/>
-</template>
-
-<style scoped>
-</style>
+    <div>
+      <router-view></router-view> <!-- C'est ici que s'affichent les pages -->
+    </div>
+  </template>
+  

@@ -1,14 +1,97 @@
+<script>
+export default
+{
+  name: 'ProductCard',
+  props: {
+    id: {
+      type: [Number, String],
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    price: {
+      type: Number,
+      required: true
+    },
+    originalPrice: {
+      type: Number,
+      default: null
+    },
+    stock: {
+      type: Number,
+      default: 0
+    },
+    isNew: {
+      type: Boolean,
+      default: false
+    },
+    maxStock: {
+      type: Number,
+      default: 100
+    }
+  },
+  computed: {
+    hasDiscount() {
+      return this.originalPrice && this.originalPrice > this.price;
+    },
+    discountPercentage() {
+      if (!this.hasDiscount) return 0;
+      const percentage = Math.round(((this.originalPrice - this.price) / this.originalPrice) * 100);
+      return percentage;
+    },
+    formattedPrice() {
+      return this.formatPrice(this.price);
+    },
+    formattedOriginalPrice() {
+      return this.formatPrice(this.originalPrice);
+    },
+    isNewProduct() {
+      return this.isNew;
+    },
+    isLowStock() {
+      return this.stock > 0 && this.stock <= 5;
+    },
+    stockStatusClass() {
+      if (this.stock <= 0) return 'out-of-stock';
+      if (this.stock <= 5) return 'low-stock';
+      return 'in-stock';
+    },
+    stockPercentage() {
+      if (this.stock <= 0) return 0;
+      const percentage = (this.stock / this.maxStock) * 100;
+      return Math.min(percentage, 100);
+    }
+  },
+  methods: {
+    formatPrice(price) {
+      if (price === null) return '';
+      return price.toFixed(2).replace('.', ',');
+    },
+    addToCart() {
+  if (this.stock <= 0) return;
+
+  const product = {
+    id: this.id,
+    name: this.name,
+    price: this.price,
+    originalPrice: this.originalPrice,
+    stock: this.stock,
+    quantity: 1
+  };
+
+  this.$emit('add-to-cart', product); // ou 'ajouter-au-panier' si tu renommes
+}
+
+  }
+}
+</script>
+
 <template>
     <div class="product-card" :class="{ 'low-stock': isLowStock, 'out-of-stock': stock <= 0 }">
-      <div class="product-badge" v-if="isNewProduct">Nouveau</div>
-      <div class="product-badge sale" v-if="hasDiscount">-{{ discountPercentage }}%</div>
-      
-      <div class="product-image-container">
-        <img :src="image" :alt="name" class="product-image">
-      </div>
-      
       <div class="product-info">
-        <h3 class="product-name">{{ name }}</h3>
+        <h3 class="product-name">{{ name }} {{ id }}</h3>
         
         <div class="product-price-container">
           <span class="product-price" :class="{ 'has-discount': hasDiscount }">{{ formattedPrice }} €</span>
@@ -35,92 +118,7 @@
     </div>
   </template>
   
-  <script>
-  export default {
-    name: 'ProductCard',
-    props: {
-      id: {
-        type: [Number, String],
-        required: true
-      },
-      name: {
-        type: String,
-        required: true
-      },
-      price: {
-        type: Number,
-        required: true
-      },
-      originalPrice: {
-        type: Number,
-        default: null
-      },
-      stock: {
-        type: Number,
-        default: 0
-      },
-      image: {
-        type: String,
-        default: '/images/default-product.jpg'
-      },
-      isNew: {
-        type: Boolean,
-        default: false
-      },
-      maxStock: {
-        type: Number,
-        default: 100
-      }
-    },
-    computed: {
-      hasDiscount() {
-        return this.originalPrice && this.originalPrice > this.price;
-      },
-      discountPercentage() {
-        if (!this.hasDiscount) return 0;
-        const percentage = Math.round(((this.originalPrice - this.price) / this.originalPrice) * 100);
-        return percentage;
-      },
-      formattedPrice() {
-        return this.formatPrice(this.price);
-      },
-      formattedOriginalPrice() {
-        return this.formatPrice(this.originalPrice);
-      },
-      isNewProduct() {
-        return this.isNew;
-      },
-      isLowStock() {
-        return this.stock > 0 && this.stock <= 5;
-      },
-      stockStatusClass() {
-        if (this.stock <= 0) return 'out-of-stock';
-        if (this.stock <= 5) return 'low-stock';
-        return 'in-stock';
-      },
-      stockPercentage() {
-        if (this.stock <= 0) return 0;
-        const percentage = (this.stock / this.maxStock) * 100;
-        return Math.min(percentage, 100);
-      }
-    },
-    methods: {
-      formatPrice(price) {
-        if (price === null) return '';
-        return price.toFixed(2).replace('.', ',');
-      },
-      addToCart() {
-        if (this.stock <= 0) return;
-        this.$emit('add-to-cart', {
-          id: this.id,
-          name: this.name,
-          price: this.price,
-          quantity: 1
-        });
-      }
-    }
-  }
-  </script>
+
   
   <style scoped>
   .product-card {
