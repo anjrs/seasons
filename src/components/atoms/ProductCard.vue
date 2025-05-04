@@ -1,6 +1,29 @@
+<template>
+  <div class="product-card">
+    
+    <div class="product-info">
+      <h3 class="product-name">{{ name }}</h3>
+      <div class="product-price">
+        <span class="current-price">{{ price }} Ar</span>
+        <!-- <span class="original-price" v-if="hasDiscount">{{ formattedOriginalPrice }}</span> -->
+      </div>
+      <div class="product-stock" :class="stockLevel">
+        <span v-if="stock > 0">En stock ({{ stock }})</span>
+        <span v-else>Rupture de stock</span>
+      </div>
+    </div>
+    <button 
+      class="add-to-cart-btn" 
+      @click="addToCart"
+      :disabled="stock <= 0"
+    >
+      <i class="fas fa-plus"></i>
+    </button>
+  </div>
+</template>
+
 <script>
-export default
-{
+export default {
   name: 'ProductCard',
   props: {
     id: {
@@ -11,10 +34,10 @@ export default
       type: String,
       required: true
     },
-    price: {
-      type: Number,
-      required: true
-    },
+    // price: {
+    //   type: Number,
+    //   required: true
+    // },
     originalPrice: {
       type: Number,
       default: null
@@ -23,296 +46,196 @@ export default
       type: Number,
       default: 0
     },
-    isNew: {
-      type: Boolean,
-      default: false
-    },
-    maxStock: {
+    price: {
       type: Number,
-      default: 100
+      default: 0
+    },
+    image: {
+      type: String,
+      default: null
     }
   },
+  data() {
+    return {
+      defaultImage: '/images/default-product.jpg',
+      imageError: false
+    };
+  },
   computed: {
+    productImage() {
+      if (this.imageError || !this.image) {
+        return this.defaultImage;
+      }
+      return this.image;
+    },
     hasDiscount() {
       return this.originalPrice && this.originalPrice > this.price;
     },
     discountPercentage() {
       if (!this.hasDiscount) return 0;
-      const percentage = Math.round(((this.originalPrice - this.price) / this.originalPrice) * 100);
-      return percentage;
+      const discount = ((this.originalPrice - this.price) / this.originalPrice) * 100;
+      return Math.round(discount);
     },
     formattedPrice() {
-      return this.formatPrice(this.price);
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(this.price);
     },
     formattedOriginalPrice() {
-      return this.formatPrice(this.originalPrice);
+      if (!this.originalPrice) return '';
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(this.originalPrice);
     },
-    isNewProduct() {
-      return this.isNew;
-    },
-    isLowStock() {
-      return this.stock > 0 && this.stock <= 5;
-    },
-    stockStatusClass() {
+    stockLevel() {
       if (this.stock <= 0) return 'out-of-stock';
-      if (this.stock <= 5) return 'low-stock';
+      if (this.stock < 5) return 'low-stock';
       return 'in-stock';
-    },
-    stockPercentage() {
-      if (this.stock <= 0) return 0;
-      const percentage = (this.stock / this.maxStock) * 100;
-      return Math.min(percentage, 100);
     }
   },
   methods: {
-    formatPrice(price) {
-      if (price === null) return '';
-      return price.toFixed(2).replace('.', ',');
+    handleImageError() {
+      this.imageError = true;
     },
     addToCart() {
-  if (this.stock <= 0) return;
-
-  const product = {
-    id: this.id,
-    name: this.name,
-    price: this.price,
-    originalPrice: this.originalPrice,
-    stock: this.stock,
-    quantity: 1
-  };
-
-  this.$emit('add-to-cart', product); // ou 'ajouter-au-panier' si tu renommes
-}
-
+      if (this.stock <= 0) return;
+      
+      this.$emit('add-to-cart', {
+        id: this.id,
+        Name: this.name,
+        PriceStd: this.price,
+        StockQty: this.stock,
+        image: this.productImage
+      });
+    }
   }
-}
+};
 </script>
 
-<template>
-    <div class="product-card" :class="{ 'low-stock': isLowStock, 'out-of-stock': stock <= 0 }">
-      <div class="product-info">
-        <h3 class="product-name">{{ name }} {{ id }}</h3>
-        
-        <div class="product-price-container">
-          <span class="product-price" :class="{ 'has-discount': hasDiscount }">{{ formattedPrice }} €</span>
-          <span class="product-original-price" v-if="hasDiscount">{{ formattedOriginalPrice }} €</span>
-        </div>
-        
-        <div class="product-stock" :class="stockStatusClass">
-          <div class="stock-indicator">
-            <div class="stock-bar" :style="{ width: stockPercentage + '%' }"></div>
-          </div>
-          <span v-if="stock > 0">{{ stock }} en stock</span>
-          <span v-else>Rupture de stock</span>
-        </div>
-        
-        <button 
-          class="buy-button" 
-          :disabled="stock <= 0"
-          @click="addToCart"
-        >
-          <span v-if="stock > 0">Ajouter au panier</span>
-          <span v-else>Indisponible</span>
-        </button>
-      </div>
-    </div>
-  </template>
-  
+<style>
+.product-card {
+  background-color: #fff;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: fadeIn 0.4s ease-out;
+}
 
-  
-  <style scoped>
-  .product-card {
-    position: relative;
-    width: 100%;
-    max-width: 320px;
-    border-radius: 12px;
-    overflow: hidden;
-    background-color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    margin: 0 auto;
-  }
-  
-  .product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  }
-  
-  .product-badge {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    background-color: #4caf50;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    z-index: 2;
-  }
-  
-  .product-badge.sale {
-    background-color: #f44336;
-    left: auto;
-    right: 12px;
-  }
-  
-  .product-image-container {
-    height: 180px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #f5f5f5;
-  }
-  
-  .product-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-  }
-  
-  .product-card:hover .product-image {
-    transform: scale(1.05);
-  }
-  
-  .product-info {
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-  }
-  
-  .product-name {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #212121;
-    line-height: 1.3;
-    height: 2.8rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-  
-  .product-price-container {
-    display: flex;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  
-  .product-price {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #212121;
-  }
-  
-  .product-price.has-discount {
-    color: #f44336;
-  }
-  
-  .product-original-price {
-    margin-left: 8px;
-    font-size: 0.85rem;
-    color: #9e9e9e;
-    text-decoration: line-through;
-  }
-  
-  .product-stock {
-    margin-bottom: 14px;
-    font-size: 0.8rem;
-    color: #757575;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .product-stock.low-stock {
-    color: #ff9800;
-  }
-  
-  .product-stock.out-of-stock {
-    color: #f44336;
-  }
-  
-  .stock-indicator {
-    height: 4px;
-    background-color: #eeeeee;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  
-  .stock-bar {
-    height: 100%;
-    background-color: #4caf50;
-    border-radius: 2px;
-    transition: width 0.3s ease;
-  }
-  
-  .low-stock .stock-bar {
-    background-color: #ff9800;
-  }
-  
-  .out-of-stock .stock-bar {
-    background-color: #f44336;
-    width: 0 !important;
-  }
-  
-  .buy-button {
-    margin-top: auto;
-    padding: 10px 12px;
-    background-color: #1976d2;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    outline: none;
-    font-size: 0.95rem;
-  }
-  
-  .buy-button:hover:not(:disabled) {
-    background-color: #1565c0;
-  }
-  
-  .buy-button:disabled {
-    background-color: #e0e0e0;
-    color: #9e9e9e;
-    cursor: not-allowed;
-  }
-  
-  .product-card.out-of-stock {
-    opacity: 0.85;
-  }
-  
-  /* 📱 Responsive Mobile */
-  @media (max-width: 600px) {
-    .product-card {
-      max-width: 100%;
-    }
-  
-    .product-image-container {
-      height: 160px;
-    }
-  
-    .product-name {
-      font-size: 0.95rem;
-    }
-  
-    .product-price {
-      font-size: 1rem;
-    }
-  
-    .buy-button {
-      font-size: 0.9rem;
-      padding: 8px 10px;
-    }
-  }
-  </style>
-  
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08);
+}
+
+.product-image {
+  position: relative;
+  padding-top: 100%; /* Aspect ratio 1:1 */
+  overflow: hidden;
+}
+
+.product-image img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image img {
+  transform: scale(1.05);
+}
+
+.product-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  background-color: #fa5252;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.product-info {
+  padding: 0.75rem;
+}
+
+.product-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #212529;
+  /* Limiter à 2 lignes de texte */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 2.7rem;
+}
+
+.product-price {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.current-price {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.original-price {
+  font-size: 0.8rem;
+  text-decoration: line-through;
+  color: #adb5bd;
+}
+
+.product-stock {
+  font-size: 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.in-stock {
+  color: #40c057;
+}
+
+.low-stock {
+  color: #fd7e14;
+}
+
+.out-of-stock {
+  color: #fa5252;
+}
+
+.add-to-cart-btn {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background-color: #4263eb;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(66, 99, 235, 0.3);
+  transition: all 0.2s ease;
+}
+
+.add-to-cart-btn:hover {
+  background-color: #3b5bdb;
+  transform: scale(1.1);
+}
+
+.add-to-cart-btn:disabled {
+  background-color: #dee2e6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+</style>

@@ -29,7 +29,7 @@ export default
     computed:
     {
         totalPanier() {
-            return this.panier.reduce((acc, item) => acc + item.price * item.quantity, 0);
+            return this.panier.reduce((acc, item) => acc + item.PriceStd * item.quantity, 0);
         },
         formValid() {
             return this.businessPartner.name && 
@@ -250,7 +250,7 @@ export default
         const orderData = {
             C_BPartner_ID: { id: businessPartnerId },
             C_BPartner_Location_ID: { id: defaultLocation.id },
-            C_DocTypeTarget_ID: { id: 135}, // Remplace par l'ID réel de ton type de doc
+            C_DocTypeTarget_ID: { id: 132}, // Remplace par l'ID réel de ton type de doc
              // À adapter si nécessaire
         };
 
@@ -402,8 +402,8 @@ export default
                 v-for="item in panier"
                 :key="item.id"
                 :id="item.id"
-                :name="item.name"
-                :price="item.price"
+                :name="item.Name"
+                :price="item.PriceStd"
                 :quantity="item.quantity"
                 @update-quantity="updateQuantity"
                 @remove-item="removeItem"
