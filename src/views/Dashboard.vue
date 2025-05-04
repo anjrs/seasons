@@ -1,14 +1,22 @@
 <template>
     <div class="dashboard">
-      <header class="header">
+    <header class="header">
+      <div class="header-actions">
+        <button class="back-btn" @click="goBack">
+          <i class="fas fa-arrow-left"></i>
+        </button>
         <h1 class="title">Tableau de bord</h1>
-        <div class="period-selector">
-          <button class="period-btn active">Jour</button>
-          <button class="period-btn">Semaine</button>
-          <button class="period-btn">Mois</button>
-          <button class="period-btn">Année</button>
-        </div>
-      </header>
+      </div>
+      <!-- Navigation rapide -->
+      <div class="quick-nav">
+        <router-link to="/panier" class="nav-btn">
+          <i class="fas fa-shopping-cart"></i>
+        </router-link>
+        <router-link to="/dashboard" class="nav-btn">
+          <i class="fas fa-chart-bar"></i>
+        </router-link>
+      </div>
+    </header>
   
       <div class="stats-cards">
         <div class="stat-card">
@@ -135,6 +143,8 @@ export default {
       token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
       businessPartners: [],
       orderCompleteList: [],
+      orderLinelist: [],
+      products: [],
       customers: 0,
       totalSales: 0 ,
       orders: 0,
@@ -275,6 +285,56 @@ export default {
         catch (error)
         {
             console.error('Erreur lors de la récupération des commandes :', error);
+        }
+    },
+
+    // Récupération des produits
+    async fetchProducts() {
+      this.loading = true;
+      try {
+        const response = await axios.get('/api/v1/models/M_Product', {
+          headers: {
+            Authorization: `Bearer ${this.token}`
+          }
+        });
+        const products = response.data.records || [];
+
+        // Pour chaque produit, récupérer son stock et sa quantité
+        const productsWithStock = await Promise.all(products.map(async product => {
+          const stockQty = await this.fetchStockByProductId(product.id);
+          const price = await this.fetchPriceByProductId(product.id);
+          return {
+            ...product,
+            StockQty: stockQty,
+            PriceStd: price
+          };
+        }));
+        this.products = productsWithStock;
+      } catch (error) {
+        console.error('Erreur de récupération des produits:', error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async fetchOrderLinesByIdOrder(orderId) {
+        try 
+        {
+            const response = await axios.get('/api/v1/models/C_OrderLine', {
+                headers: {
+                    Authorization: `Bearer ${this.token}`
+                },
+                params: {
+                    'filter[Order_ID]': orderId
+                }
+            });
+            console.log('Lignes de commande récupérées :', response.data.records);
+            // Vous pouvez ensuite stocker les lignes de commande si besoin :
+            this.orderLines = response.data.records || [];
+        } 
+        catch (error) 
+        {
+            console.error('Erreur lors de la récupération des lignes de commande :', error);
         }
     },
 

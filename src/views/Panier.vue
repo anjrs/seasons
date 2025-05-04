@@ -69,8 +69,8 @@ export default
             Address1: this.businessPartner.address,
             City: this.businessPartner.city || 'Antananarivo',
             Postal: this.businessPartner.postal || '101',
-            C_Country_ID: { id: 100 }, // Mets ici l’ID réel de ton pays
-            C_Region_ID: { id: 102 }   // Mets l’ID de ta région si nécessaire
+            C_Country_ID: { id: 100 }, // Mets ici l'ID réel de ton pays
+            C_Region_ID: { id: 102 }   // Mets l'ID de ta région si nécessaire
             }, {
             headers: {
                 Authorization: `Bearer ${this.token}`,
@@ -394,163 +394,325 @@ export default
 
 <template>
     <div class="panier-container">
-        <h2 class="panier-titre" v-if="panier.length > 0">Votre panier</h2>
-        <h2 class="panier-vide" v-else>Votre panier est vide</h2>
-        
-        <div class="items-container">
-            <OrderCard
-                v-for="item in panier"
-                :key="item.id"
-                :id="item.id"
-                :name="item.Name"
-                :price="item.PriceStd"
-                :quantity="item.quantity"
-                @update-quantity="updateQuantity"
-                @remove-item="removeItem"
-            />
+        <div class="header">
+            <button class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="title">Mon Panier</h2>
+            <div class="header-actions">
+                <a href="#" class="nav-btn">
+                    <i class="fas fa-search"></i>
+                </a>
+            </div>
         </div>
         
-        <div class="total-panier" v-if="panier.length > 0">
-            <h3>Total à payer : {{ totalPanier.toLocaleString() }} Ar</h3>
+        <div class="empty-cart" v-if="panier.length === 0">
+            <div class="empty-cart-icon">
+                <i class="fas fa-shopping-cart"></i>
+            </div>
+            <p>Votre panier est vide</p>
+            <a href="#" class="continue-shopping">Continuer vos achats</a>
+        </div>
+        
+        <div v-else class="cart-content">
+            <div class="items-container">
+                <OrderCard
+                    v-for="item in panier"
+                    :key="item.id"
+                    :id="item.id"
+                    :name="item.Name"
+                    :price="item.PriceStd"
+                    :quantity="item.quantity"
+                    @update-quantity="updateQuantity"
+                    @remove-item="removeItem"
+                />
+            </div>
+            
+            <div class="cart-summary">
+                <div class="summary-row">
+                    <span>Total articles</span>
+                    <span>{{ panier.length }}</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total à payer</span>
+                    <span>{{ totalPanier.toLocaleString() }} Ar</span>
+                </div>
+                
+                <div class="cart-actions">
+                    <button class="btn-secondary" @click="viderPanier">
+                        <i class="fas fa-trash"></i> Vider
+                    </button>
+                    <button class="btn-primary" @click="checkout">
+                        <i class="fas fa-check"></i> Commander
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div class="actions-container" v-if="panier.length > 0">
-            <button class="btn-vider" @click="viderPanier">Vider le panier</button>
-            <button class="btn-valider" @click="checkout">Valider la commande</button>
-        </div>
-
+        <!-- Popup de commande -->
         <div v-if="showCheckoutForm" class="popup-overlay">
             <div class="popup-form">
-                <h3 class="form-titre">Entrez vos informations</h3>
+                <div class="popup-header">
+                    <h3>Finaliser ma commande</h3>
+                    <button class="close-btn" @click="annulerCommande">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
                 
                 <div v-if="orderCreated" class="success-message">
-                    {{ orderMessage }}
+                    <div class="success-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <p>{{ orderMessage }}</p>
                 </div>
                 
                 <div v-else class="form-fields">
                     <div class="form-group">
-                        <label for="name">Nom complet *</label>
-                        <input id="name" v-model="businessPartner.name" placeholder="Nom complet" required />
+                        <label for="name">Nom complet <span class="required">*</span></label>
+                        <input id="name" v-model="businessPartner.name" placeholder="Votre nom complet" required />
                     </div>
                     
                     <div class="form-group">
-                        <label for="email">Email *</label>
-                        <input id="email" type="email" v-model="businessPartner.email" placeholder="Email" required />
+                        <label for="email">Email <span class="required">*</span></label>
+                        <input id="email" type="email" v-model="businessPartner.email" placeholder="exemple@email.com" required />
                     </div>
                     
                     <div class="form-group">
                         <label for="phone">Téléphone</label>
-                        <input id="phone" type="tel" v-model="businessPartner.phone" placeholder="Téléphone" />
+                        <input id="phone" type="tel" v-model="businessPartner.phone" placeholder="034 XX XXX XX" />
                     </div>
                     
                     <div class="form-group">
-                        <label for="address">Adresse de livraison *</label>
-                        <textarea id="address" v-model="businessPartner.address" placeholder="Adresse de livraison" required></textarea>
+                        <label for="address">Adresse de livraison <span class="required">*</span></label>
+                        <textarea id="address" v-model="businessPartner.address" placeholder="Votre adresse complète" required></textarea>
                     </div>
                     
                     <div class="form-actions">
-                        <button class="btn-annuler" @click="annulerCommande">Annuler</button>
-                        <button class="btn-confirmer" @click="validerCommande" :disabled="!formValid">
-                            Confirmer la commande
+                        <button class="btn-secondary" @click="annulerCommande">
+                            <i class="fas fa-arrow-left"></i> Retour
+                        </button>
+                        <button class="btn-primary" @click="validerCommande" :disabled="!formValid">
+                            <i class="fas fa-check"></i> Confirmer
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+        
+        <!-- Menu de navigation bas -->
+        <div class="bottom-nav">
+            <a href="#" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Accueil</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-search"></i>
+                <span>Recherche</span>
+            </a>
+            <a href="#" class="nav-item active">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Panier</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-user"></i>
+                <span>Compte</span>
+            </a>
+        </div>
     </div>
 </template>
 
 <style scoped>
+/* Import des polices */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
 .panier-container {
-  max-width: 800px;
+  font-family: 'Poppins', sans-serif;
+  background-color: #f8f9fa;
+  color: #212529;
+  padding: 1rem;
+  padding-bottom: 4rem;
+  max-width: 480px;
   margin: 0 auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
+  position: relative;
+  min-height: 100vh;
 }
 
-.panier-titre, .panier-vide {
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.back-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background-color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  color: #4263eb;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  color: #4263eb;
+  text-decoration: none;
+}
+
+/* Panier vide */
+.empty-cart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
   text-align: center;
-  margin-bottom: 20px;
-  color: #333;
+  animation: fadeIn 0.3s ease-out;
 }
 
-.panier-vide {
-  color: #888;
-  font-style: italic;
+.empty-cart-icon {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  background-color: #f1f3f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.empty-cart-icon i {
+  font-size: 2rem;
+  color: #4263eb;
+}
+
+.empty-cart p {
+  color: #6c757d;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.continue-shopping {
+  padding: 0.75rem 1.5rem;
+  background-color: #4263eb;
+  color: white;
+  border-radius: 1.5rem;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.continue-shopping:hover {
+  background-color: #3654cc;
+}
+
+/* Contenu du panier */
+.cart-content {
+  animation: fadeIn 0.3s ease-out;
 }
 
 .items-container {
-  margin-bottom: 20px;
+  margin-bottom: 1.5rem;
 }
 
-.total-panier {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 8px;
-  text-align: right;
-  font-weight: bold;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+/* Résumé du panier */
+.cart-summary {
+  background-color: #fff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  margin-bottom: 1rem;
 }
 
-.total-panier h3 {
-  margin: 0;
-  color: #2c3e50;
-}
-
-.actions-container {
+.summary-row {
   display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-  margin-top: 20px;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  color: #6c757d;
 }
 
-.btn-vider, .btn-valider, .btn-annuler, .btn-confirmer {
-  padding: 10px 20px;
+.summary-row.total {
+  border-top: 1px solid #e9ecef;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  font-weight: 600;
+  color: #212529;
+  font-size: 1.1rem;
+}
+
+.cart-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  gap: 1rem;
+}
+
+.btn-primary, .btn-secondary {
+  padding: 0.75rem 1rem;
+  border-radius: 1.5rem;
   border: none;
-  border-radius: 5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   cursor: pointer;
-  font-weight: bold;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  font-family: 'Poppins', sans-serif;
 }
 
-.btn-vider {
-  background-color: #e74c3c;
+.btn-primary {
+  background-color: #4263eb;
   color: white;
+  flex: 2;
 }
 
-.btn-valider {
-  background-color: #3498db;
-  color: white;
+.btn-secondary {
+  background-color: #f1f3f9;
+  color: #4263eb;
+  flex: 1;
 }
 
-.btn-annuler {
-  background-color: #95a5a6;
-  color: white;
+.btn-primary:hover {
+  background-color: #3654cc;
 }
 
-.btn-confirmer {
-  background-color: #2ecc71;
-  color: white;
+.btn-secondary:hover {
+  background-color: #e2e6f3;
 }
 
-.btn-vider:hover, .btn-annuler:hover {
-  background-color: #c0392b;
-}
-
-.btn-valider:hover {
-  background-color: #2980b9;
-}
-
-.btn-confirmer:hover {
-  background-color: #27ae60;
-}
-
-.btn-confirmer:disabled {
-  background-color: #95a5a6;
+.btn-primary:disabled {
+  background-color: #adb5bd;
   cursor: not-allowed;
 }
 
+/* Popup de commande */
 .popup-overlay {
   position: fixed;
   top: 0;
@@ -562,83 +724,158 @@ export default
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
 }
 
 .popup-form {
   width: 90%;
-  max-width: 500px;
+  max-width: 450px;
   background-color: white;
-  border-radius: 10px;
-  padding: 25px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
-.form-titre {
-  text-align: center;
-  margin-bottom: 20px;
-  color: #2c3e50;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 15px;
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.popup-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.close-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background-color: #f8f9fa;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6c757d;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background-color: #e9ecef;
+  color: #212529;
 }
 
 .form-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+  padding: 1.5rem;
 }
 
 .form-group {
-  display: flex;
-  flex-direction: column;
+  margin-bottom: 1.25rem;
 }
 
 .form-group label {
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #555;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.required {
+  color: #fa5252;
 }
 
 .form-group input, .form-group textarea {
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  font-size: 14px;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.75rem;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  color: #212529;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus, .form-group textarea:focus {
+  border-color: #4263eb;
+  outline: none;
 }
 
 .form-group textarea {
-  min-height: 80px;
+  min-height: 100px;
   resize: vertical;
 }
 
 .form-actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 20px;
+  gap: 1rem;
+  margin-top: 1.5rem;
 }
 
+.form-actions .btn-primary, .form-actions .btn-secondary {
+  flex: 1;
+}
+
+/* Message de succès */
 .success-message {
+  padding: 2rem 1.5rem;
   text-align: center;
-  color: #2ecc71;
-  font-weight: bold;
-  padding: 20px;
-  background-color: #f0f8f1;
-  border-radius: 5px;
-  margin: 15px 0;
+  animation: fadeIn 0.3s ease-out;
 }
 
-@media (max-width: 600px) {
-  .popup-form {
-    width: 95%;
-    padding: 15px;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .btn-annuler, .btn-confirmer {
-    width: 100%;
-  }
+.success-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background-color: #d3f9d8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.success-icon i {
+  font-size: 2rem;
+  color: #2f9e44;
+}
+
+.success-message p {
+  color: #212529;
+  font-weight: 500;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Menu de navigation bas */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3.5rem;
+  background-color: #fff;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  z-index: 990;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+  text-decoration: none;
+  font-size: 0.7rem;
+  padding: 0.5rem;
+  transition: all 0.2s ease;
 }
 </style>
