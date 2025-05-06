@@ -1,92 +1,176 @@
 <script>
 import axios from 'axios';
 import OrderCard from '../components/atoms/OrderCard.vue';
+
 export default
 {
-    name: 'Panier' ,
+    name: 'Panier',
     components: { OrderCard },
-    mounted()
-    {
+    mounted() {
         this.getPanier();
+        this.loadBusinessPartners(); // Charger les partenaires dès le montage
     },
-    data()
-    {
+    data() {
         return {
             panier: [],
-            token:'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
+            token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
             showCheckoutForm: false,
             orderCreated: false,
             orderMessage: '',
-            businessPartner:
-            {
+            businessPartner: {
                 name: '',
                 email: '',
                 phone: '',
                 address: ''
             },
+            // Nouvelles propriétés pour le sélecteur de business partners
+            businessPartners: [],
+            selectedPartnerId: '',
+            selectedPartner: null,
+            showNewPartnerForm: false,
+            partnerLocations: [],
+            selectedLocationId: ''
         };
     },
-    computed:
-    {
+    computed: {
         totalPanier() {
             return this.panier.reduce((acc, item) => acc + item.PriceStd * item.quantity, 0);
         },
         formValid() {
-            return this.businessPartner.name && 
-                   this.businessPartner.email && 
-                   this.businessPartner.address;
+            if (this.showNewPartnerForm) {
+                // Validation pour un nouveau partenaire
+                return this.businessPartner.name && 
+                       this.businessPartner.email && 
+                       this.businessPartner.address;
+            } else {
+                // Validation pour un partenaire existant
+                return this.selectedPartnerId && this.selectedLocationId;
+            }
         }
     },
 
-    methods: 
-    {
-        getPanier()
-        {
-            try
-            {
+    methods: {
+        getPanier() {
+            try {
                 const stored = localStorage.getItem('panier');
-                if (stored)
-                {
+                if (stored) {
                     const parsed = JSON.parse(stored);
                     this.panier = parsed;
                     console.table(this.panier);
-                } 
-                else
-                {
+                } else {
                     console.log('Panier vide.');
                 }
-            } 
-            catch (error)
-            {
+            } catch (error) {
                 console.error('Erreur lors de la récupération du panier :', error);
+            }
+        },
+
+        async loadBusinessPartners() {
+            this.businessPartners = await this.getBusinessPartners();
+        },
+
+        async getBusinessPartners() {
+            try {
+                const response = await axios.get('/api/v1/models/C_BPartner', {
+                    headers: {
+                        Authorization: `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    params: {
+                        filter: 'IsCustomer=Y',
+                        limit: 100,
+                        fields: 'id,Name,EMail,Phone,C_BPartner_ID'
+                    }
+                });
+
+                return response.data.records || [];
+            } catch (error) {
+                console.error('Erreur lors de la récupération des partenaires:', error.response?.data || error.message);
+                return [];
+            }
+        },
+
+        toggleNewPartnerForm() {
+            this.showNewPartnerForm = !this.showNewPartnerForm;
+            if (this.showNewPartnerForm) {
+                this.selectedPartnerId = '';
+                this.selectedPartner = null;
+                this.selectedLocationId = '';
+            }
+        },
+
+        async handlePartnerSelection() {
+            if (!this.selectedPartnerId) {
+                this.selectedPartner = null;
+                this.partnerLocations = [];
+                this.selectedLocationId = '';
+                return;
+            }
+            
+            // Trouver les détails du partenaire sélectionné
+            this.selectedPartner = this.businessPartners.find(
+                partner => partner.id === this.selectedPartnerId
+            );
+            
+            // Charger les adresses du partenaire
+            await this.loadPartnerLocations(this.selectedPartnerId);
+        },
+
+        async loadPartnerLocations(partnerId) {
+            try {
+                if (!partnerId) return;
+                
+                const response = await axios.get('/api/v1/models/C_BPartner_Location', {
+                    headers: {
+                        Authorization: `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    params: {
+                        filter: `C_BPartner_ID=${partnerId}`,
+                        fields: 'id,Name,Address1,City,Postal,IsShipTo,IsBillTo,IsDefault'
+                    }
+                });
+                
+                this.partnerLocations = response.data.records || [];
+                
+                // Sélectionner automatiquement l'adresse de livraison par défaut
+                const defaultShippingAddress = this.partnerLocations.find(loc => loc.IsShipTo === 'Y' && loc.IsDefault === 'Y');
+                const anyShippingAddress = this.partnerLocations.find(loc => loc.IsShipTo === 'Y');
+                
+                if (defaultShippingAddress) {
+                    this.selectedLocationId = defaultShippingAddress.id;
+                } else if (anyShippingAddress) {
+                    this.selectedLocationId = anyShippingAddress.id;
+                } else if (this.partnerLocations.length > 0) {
+                    this.selectedLocationId = this.partnerLocations[0].id;
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des adresses:', error);
+                this.partnerLocations = [];
             }
         },
         
         async creerLocation() {
-        try
-        {
-            const response = await axios.post('/api/v1/models/C_Location', {
-            Address1: this.businessPartner.address,
-            City: this.businessPartner.city || 'Antananarivo',
-            Postal: this.businessPartner.postal || '101',
-            C_Country_ID: { id: 100 }, // Mets ici l'ID réel de ton pays
-            C_Region_ID: { id: 102 }   // Mets l'ID de ta région si nécessaire
-            }, {
-            headers: {
-                Authorization: `Bearer ${this.token}`,
-                'Content-Type': 'application/json'
+            try {
+                const response = await axios.post('/api/v1/models/C_Location', {
+                    Address1: this.businessPartner.address,
+                    City: this.businessPartner.city || 'Antananarivo',
+                    Postal: this.businessPartner.postal || '101',
+                    C_Country_ID: { id: 100 }, // Mets ici l'ID réel de ton pays
+                    C_Region_ID: { id: 102 }   // Mets l'ID de ta région si nécessaire
+                }, {
+                    headers: {
+                        Authorization: `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                return response.data.id;
+            } catch (error) {
+                console.error('Erreur lors de la création de la localisation :', error);
+                return null;
             }
-            });
-            return response.data.id;
-        } 
-        catch (error)
-        {
-            console.error('Erreur lors de la création de la localisation :', error);
-            return null;
-        }
         },
 
-        
         async getPartnerLocations(businessPartnerId) {
             try {
                 // Vérifier que l'ID du partenaire est valide
@@ -95,7 +179,7 @@ export default
                 }
 
                 // Appel à l'API iDempiere pour récupérer les adresses du partenaire
-                const response = await axios.get(`/api/v1/models/C_BPartner_Location`, {
+                const response = await axios.get('/api/v1/models/C_BPartner_Location', {
                     headers: {
                         Authorization: `Bearer ${this.token}`,
                         'Content-Type': 'application/json'
@@ -115,7 +199,7 @@ export default
                 const locations = response.data.records.map(location => ({
                     id: location.id,
                     name: location.Name || 'Adresse sans nom',
-                    address: location.Address || '',
+                    address: location.Address1 || '',
                     isShipTo: location.IsShipTo === 'Y',
                     isBillTo: location.IsBillTo === 'Y',
                     isDefault: location.IsDefault === 'Y'
@@ -130,49 +214,52 @@ export default
         },
         
         async creerPartnerLocation(businessPartnerId) {
-    try {
-        if (!businessPartnerId) {
-            throw new Error('ID du partenaire commercial non fourni');
-        }
+            try {
+                if (!businessPartnerId) {
+                    throw new Error('ID du partenaire commercial non fourni');
+                }
 
-        const response = await axios.post('/api/v1/models/C_BPartner_Location', {
-            C_BPartner_ID: businessPartnerId,
-            C_Location_ID: 1000000, // Adresse fixe
-            Name: `Adresse de ${this.businessPartner.name || 'partenaire'}`,
-            IsShipTo: true,
-            IsBillTo: true,
-            IsPayFrom: true,
-            IsRemitTo: true,
-            // IsDefault: true,
-            AD_Org_ID: 0 // Optionnel selon ton modèle
-        }, {
-            headers: {
-                Authorization: `Bearer ${this.token}`,
-                'Content-Type': 'application/json'
+                // Créer d'abord un emplacement si un nouveau partenaire
+                let locationId = 1000000; // Valeur par défaut
+                if (this.showNewPartnerForm && this.businessPartner.address) {
+                    const newLocationId = await this.creerLocation();
+                    if (newLocationId) {
+                        locationId = newLocationId;
+                    }
+                }
+
+                const response = await axios.post('/api/v1/models/C_BPartner_Location', {
+                    C_BPartner_ID: { id: businessPartnerId },
+                    C_Location_ID: { id: locationId },
+                    Name: `Adresse de ${this.businessPartner.name || 'partenaire'}`,
+                    IsShipTo: 'Y',
+                    IsBillTo: 'Y',
+                    IsPayFrom: 'Y',
+                    IsRemitTo: 'Y',
+                    IsDefault: 'Y',
+                    AD_Org_ID: { id: 0 }
+                }, {
+                    headers: {
+                        Authorization: `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Adresse partenaire créée avec succès:', response.data);
+                return response.data.id;
+            } catch (error) {
+                console.error('Erreur lors de la création de l\'adresse du partenaire:', error.response?.data || error.message);
+                throw error;
             }
-        });
+        },
 
-        console.log('Adresse partenaire créée avec succès:', response.data);
-        return response.data.id;
-    } catch (error) {
-        console.error('Erreur lors de la création de l\'adresse du partenaire:', error.response?.data || error.message);
-        throw error;
-    }
-},
-
-        
-        //business partner
-        async verifierOuCreerBusinessPartner()
-        {
-            try
-            {
+        async verifierOuCreerBusinessPartner() {
+            try {
                 const response = await axios.get('/api/v1/models/C_BPartner', {
-                    headers:
-                    {
+                    headers: {
                         Authorization: `Bearer ${this.token}`
                     },
-                    params:
-                    {
+                    params: {
                         $filter: `Name eq '${this.businessPartner.name}'`
                     }
                 });
@@ -184,18 +271,14 @@ export default
                 } else {
                     return await this.creerBusinessPartner();
                 }
-            } 
-            catch (error)
-            {
+            } catch (error) {
                 console.error('Erreur lors de la vérification du Business Partner :', error);
                 return null;
             }
         },
         
-        async creerBusinessPartner()
-        {
-            try
-            {
+        async creerBusinessPartner() {
+            try {
                 const response = await axios.post('/api/v1/models/C_BPartner', {
                     Name: this.businessPartner.name,
                     Value: `BP_${Date.now()}`, // Génération d'une valeur unique
@@ -205,13 +288,11 @@ export default
                     EMail: this.businessPartner.email || '',
                     Phone: this.businessPartner.phone || '',
                     AD_Org_ID: { id: 0 },
-                    PO_PriceList_ID: { id: 101 },
-                    PO_PaymentTerm_ID: { id: 105 },
-                    C_BP_Group_ID: { id: 105 }
-                }, 
-                {
-                    headers:
-                    {
+                    M_PriceList_ID: { id: 101 }, // Assurez-vous que cet ID est correct
+                    C_PaymentTerm_ID: { id: 105 }, // Assurez-vous que cet ID est correct
+                    C_BP_Group_ID: { id: 105 } // Assurez-vous que cet ID est correct
+                }, {
+                    headers: {
                         Authorization: `Bearer ${this.token}`,
                         'Content-Type': 'application/json'
                     }
@@ -219,102 +300,87 @@ export default
                 
                 console.log('Partenaire commercial créé avec succès:', response.data);
                 return response.data.id;
-            } 
-            catch (error)
-            {
+            } catch (error) {
                 console.error('Erreur lors de la création du Business Partner :', error);
                 return null;
             }
         },
         
-        async creerCommande(businessPartnerId) {
-    try {
-        if (!businessPartnerId) throw new Error('ID du partenaire commercial non fourni');
-        if (!this.panier || this.panier.length === 0) throw new Error('Le panier est vide');
+        async creerCommande(businessPartnerId, locationId = null) {
+            try {
+                if (!businessPartnerId) throw new Error('ID du partenaire commercial non fourni');
+                if (!this.panier || this.panier.length === 0) throw new Error('Le panier est vide');
 
-        // Obtenir les adresses du partenaire
-        let locations = await this.getPartnerLocations(businessPartnerId);
-
-        if (locations.length === 0) {
-            await this.creerPartnerLocation(businessPartnerId);
-            locations = await this.getPartnerLocations(businessPartnerId);
-        }
-
-        if (locations.length === 0) {
-            throw new Error(`Impossible de créer une adresse pour le partenaire commercial ID: ${businessPartnerId}`);
-        }
-
-        const defaultLocation = locations.find(loc => loc.IsDefault) || locations[0];
-
-        // Étape 1 : Création de la commande (sans lignes)
-        const orderData = {
-            C_BPartner_ID: { id: businessPartnerId },
-            C_BPartner_Location_ID: { id: defaultLocation.id },
-            C_DocTypeTarget_ID: { id: 132}, // Remplace par l'ID réel de ton type de doc
-             // À adapter si nécessaire
-        };
-
-        const response = await axios.post('/api/v1/models/C_Order', orderData, {
-            headers: {
-                Authorization: `Bearer ${this.token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const orderId = response.data.id;
-        console.log('Commande créée avec succès, ID:', orderId);
-
-        // Étape 2 : valider la commande (changer son statut de DR → CO)
-        // await axios.put(`/api/v1/models/C_Order/${orderId}`, {
-        //     // C_Order_ID: { id: orderId },
-        //     DocStatus: { id: "CO" }
-        //     }, {
-        //     headers: {
-        //         Authorization: `Bearer ${this.token}`,
-        //         'Content-Type': 'application/json'
-        //     }
-        //     });
-
-        console.log('Commande validée avec succès, ID:', orderId);
-
-        // Étape 2 : Ajouter les lignes à la commande
-        for (let i = 0; i < this.panier.length; i++) {
-            const item = this.panier[i];
-            const orderLineData = {
-                C_Order_ID: { id: orderId },
-                M_Product_ID: { id: item.id },
-                QtyOrdered: item.quantity,
-                PriceList: item.price,
-                PriceActual: item.price,
-                PriceEntered: item.price,  // Assurez-vous que ce champ est défini
-                // C_Tax_ID: { id: yourTaxID },  // ID de taxe approprié
-                // LineNetAmt: lineNetAmt, 
-                        Line: (i + 1) * 10
-            };
-            console.log(item.price, item.quantity);
-
-            await axios.post('/api/v1/models/C_OrderLine', orderLineData, {
-                headers: {
-                    Authorization: `Bearer ${this.token}`,
-                    'Content-Type': 'application/json'
+                // Obtenir les adresses du partenaire si l'ID de location n'est pas fourni
+                let locationToUse = locationId;
+                
+                if (!locationToUse) {
+                    let locations = await this.getPartnerLocations(businessPartnerId);
+                    
+                    if (locations.length === 0) {
+                        await this.creerPartnerLocation(businessPartnerId);
+                        locations = await this.getPartnerLocations(businessPartnerId);
+                    }
+                    
+                    if (locations.length === 0) {
+                        throw new Error(`Impossible de créer une adresse pour le partenaire commercial ID: ${businessPartnerId}`);
+                    }
+                    
+                    const defaultLocation = locations.find(loc => loc.isDefault) || locations[0];
+                    locationToUse = defaultLocation.id;
                 }
-            });
 
+                // Étape 1 : Création de la commande (sans lignes)
+                const orderData = {
+                    C_BPartner_ID: { id: businessPartnerId },
+                    C_BPartner_Location_ID: { id: locationToUse },
+                    C_DocTypeTarget_ID: { id: 135 }, // Type de document pour les commandes clients
+                    M_Warehouse_ID: { id: 103 }, // ID de l'entrepôt
+                };
 
-            console.log(`Ligne ${i + 1} ajoutée à la commande.`);
-        }
+                const response = await axios.post('/api/v1/models/C_Order', orderData, {
+                    headers: {
+                        Authorization: `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
 
-        return orderId;
+                const orderId = response.data.id;
+                console.log('Commande créée avec succès, ID:', orderId);
 
-    } catch (error) {
-        console.error('Erreur lors de la validation de la commande:', error.response?.data || error.message);
-        throw error;
-    }
-},
+                // Étape 2 : Ajouter les lignes à la commande
+                for (let i = 0; i < this.panier.length; i++) {
+                    const item = this.panier[i];
+                    const orderLineData = {
+                        C_Order_ID: { id: orderId },
+                        M_Product_ID: { id: item.id },
+                        QtyEntered: item.quantity,
+                        PriceList: item.PriceStd || item.price, // Utilise PriceStd s'il existe, sinon price
+                        PriceActual: item.PriceStd || item.price,
+                        PriceEntered: item.PriceStd || item.price,
+                        Line: (i + 1) * 10
+                    };
+                    console.log(`Prix: ${item.PriceStd || item.price}, Quantité: ${item.quantity}`);
 
-        //relié au panier
-        updateQuantity(id, newQuantity)
-        {
+                    await axios.post('/api/v1/models/C_OrderLine', orderLineData, {
+                        headers: {
+                            Authorization: `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    console.log(`Ligne ${i + 1} ajoutée à la commande.`);
+                }
+
+                return orderId;
+
+            } catch (error) {
+                console.error('Erreur lors de la création de la commande:', error.response?.data || error.message);
+                throw error;
+            }
+        },
+
+        updateQuantity(id, newQuantity) {
             const item = this.panier.find(p => p.id === id);
             if (item) {
                 item.quantity = newQuantity;
@@ -322,26 +388,22 @@ export default
             }
         },
         
-        removeItem(id)
-        {
+        removeItem(id) {
             this.panier = this.panier.filter(p => p.id !== id);
             localStorage.setItem('panier', JSON.stringify(this.panier));
         },
         
-        viderPanier()
-        {
+        viderPanier() {
             this.panier = [];
             localStorage.removeItem('panier');
             console.log('Panier vidé.');
         },
         
-        checkout()
-        {
+        checkout() {
             this.showCheckoutForm = true;
         },
         
-        async validerCommande()
-        {
+        async validerCommande() {
             try {
                 // Vérifier que le formulaire est valide
                 if (!this.formValid) {
@@ -349,21 +411,34 @@ export default
                     return;
                 }
                 
-                // Créer ou récupérer le partenaire commercial
-                const businessPartnerId = await this.verifierOuCreerBusinessPartner();
-                if (!businessPartnerId) {
-                    throw new Error('Échec de la création du partenaire commercial');
+                let businessPartnerId, commandeId;
+                
+                if (this.showNewPartnerForm) {
+                    // Créer un nouveau partenaire commercial
+                    businessPartnerId = await this.creerBusinessPartner();
+                    if (!businessPartnerId) {
+                        throw new Error('Échec de la création du partenaire commercial');
+                    }
+                    
+                    // Créer la commande avec le nouveau partenaire
+                    commandeId = await this.creerCommande(businessPartnerId);
+                } else {
+                    // Utiliser le partenaire existant
+                    if (!this.selectedPartnerId || !this.selectedLocationId) {
+                        throw new Error('Veuillez sélectionner un client et une adresse');
+                    }
+                    
+                    // Créer la commande avec le partenaire existant et l'adresse sélectionnée
+                    commandeId = await this.creerCommande(this.selectedPartnerId, this.selectedLocationId);
                 }
                 
-                // Créer la commande
-                const commandeId = await this.creerCommande(businessPartnerId);
                 if (!commandeId) {
                     throw new Error('Échec de la création de la commande');
                 }
                 
                 // Mise à jour de l'UI avec succès
                 this.orderCreated = true;
-                this.orderMessage = `Commande #${commandeId} créée avec succès pour ${this.businessPartner.name}`;
+                this.orderMessage = `Commande #${commandeId} créée avec succès pour ${this.showNewPartnerForm ? this.businessPartner.name : this.selectedPartner.Name}`;
                 
                 // Vider le panier après création réussie
                 this.viderPanier();
@@ -378,6 +453,10 @@ export default
                         phone: '',
                         address: ''
                     };
+                    this.selectedPartnerId = '';
+                    this.selectedPartner = null;
+                    this.selectedLocationId = '';
+                    this.showNewPartnerForm = false;
                 }, 3000);
             } catch (error) {
                 alert(`Erreur: ${error.message}`);
@@ -391,7 +470,6 @@ export default
     }
 };
 </script>
-
 <template>
     <div class="panier-container">
         <div class="header">
@@ -467,35 +545,96 @@ export default
                 </div>
                 
                 <div v-else class="form-fields">
-                    <div class="form-group">
-                        <label for="name">Nom complet <span class="required">*</span></label>
-                        <input id="name" v-model="businessPartner.name" placeholder="Votre nom complet" required />
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="email">Email <span class="required">*</span></label>
-                        <input id="email" type="email" v-model="businessPartner.email" placeholder="exemple@email.com" required />
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="phone">Téléphone</label>
-                        <input id="phone" type="tel" v-model="businessPartner.phone" placeholder="034 XX XXX XX" />
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="address">Adresse de livraison <span class="required">*</span></label>
-                        <textarea id="address" v-model="businessPartner.address" placeholder="Votre adresse complète" required></textarea>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button class="btn-secondary" @click="annulerCommande">
-                            <i class="fas fa-arrow-left"></i> Retour
-                        </button>
-                        <button class="btn-primary" @click="validerCommande" :disabled="!formValid">
-                            <i class="fas fa-check"></i> Confirmer
-                        </button>
-                    </div>
-                </div>
+    
+                
+    <div class="form-group">
+      <label for="business-partner-select">Sélectionner un client existant</label>
+      <select 
+        id="business-partner-select" 
+        v-model="selectedPartnerId"
+        @change="handlePartnerSelection"
+        class="partner-select"
+      >
+        <option value="">-- Sélectionner un client --</option>
+        <option 
+          v-for="partner in businessPartners" 
+          :key="partner.id" 
+          :value="partner.id"
+        >
+          {{ partner.Name }}
+        </option>
+      </select>
+      <button 
+        class="btn-small" 
+        @click="toggleNewPartnerForm"
+      >
+        {{ showNewPartnerForm ? 'Utiliser un client existant' : 'Nouveau client' }}
+      </button>
+    </div>
+    
+    <!-- Formulaire pour un nouveau partenaire commercial -->
+    <div v-if="showNewPartnerForm">
+      <div class="form-group">
+        <label for="name">Nom complet <span class="required">*</span></label>
+        <input id="name" v-model="businessPartner.name" placeholder="Votre nom complet" required />
+      </div>
+      
+      <div class="form-group">
+        <label for="email">Email <span class="required">*</span></label>
+        <input id="email" type="email" v-model="businessPartner.email" placeholder="exemple@email.com" required />
+      </div>
+      
+      <div class="form-group">
+        <label for="phone">Téléphone</label>
+        <input id="phone" type="tel" v-model="businessPartner.phone" placeholder="034 XX XXX XX" />
+      </div>
+      
+      <div class="form-group">
+        <label for="address">Adresse de livraison <span class="required">*</span></label>
+        <textarea id="address" v-model="businessPartner.address" placeholder="Votre adresse complète" required></textarea>
+      </div>
+    </div>
+    
+    <!-- Détails du partenaire sélectionné -->
+    <div v-else-if="selectedPartnerId && selectedPartner">
+      <div class="partner-details">
+        <h4>Détails du client</h4>
+        <p><strong>Nom:</strong> {{ selectedPartner.Name }}</p>
+        <p v-if="selectedPartner.EMail"><strong>Email:</strong> {{ selectedPartner.EMail }}</p>
+        <p v-if="selectedPartner.Phone"><strong>Téléphone:</strong> {{ selectedPartner.Phone }}</p>
+        
+        <!-- Section pour l'adresse de livraison -->
+        <div class="address-section">
+          <h5>Adresse de livraison</h5>
+          <select 
+            v-if="partnerLocations.length > 0"
+            v-model="selectedLocationId"
+            class="location-select"
+          >
+            <option value="">-- Sélectionner une adresse --</option>
+            <option 
+              v-for="location in partnerLocations" 
+              :key="location.id" 
+              :value="location.id"
+            >
+              {{ location.Name || (location.Address1 + ' ' + (location.City || '') + ' ' + (location.Postal || '')) }}
+            </option>
+          </select>
+          <p v-else>Aucune adresse trouvée pour ce client.</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="form-actions">
+      <button class="btn-secondary" @click="annulerCommande">
+        <i class="fas fa-arrow-left"></i> Retour
+      </button>
+      <button class="btn-primary" @click="validerCommande" :disabled="!formValid">
+        <i class="fas fa-check"></i> Confirmer
+      </button>
+    </div>
+  </div>
+  </div>
             </div>
         </div>
         
@@ -518,7 +657,7 @@ export default
                 <span>Compte</span>
             </a>
         </div>
-    </div>
+   
 </template>
 
 <style scoped>
@@ -877,5 +1016,31 @@ export default
   font-size: 0.7rem;
   padding: 0.5rem;
   transition: all 0.2s ease;
+}
+.partner-select, .location-select {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.btn-small {
+  padding: 5px 10px;
+  font-size: 0.9em;
+  margin-left: 10px;
+}
+
+.partner-details {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+
+.address-section {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
 }
 </style>

@@ -72,14 +72,7 @@
         </div>
       </div>
   
-      <div class="chart-section">
-        <div class="chart-card">
-          <h2 class="chart-title">Ventes par jour</h2>
-          <div class="chart-container">
-            <line-chart :chart-data="salesChartData" :options="lineChartOptions" />
-          </div>
-        </div>
-      </div>
+      
   
       <div class="chart-section">
         <div class="chart-card">
@@ -96,7 +89,7 @@
           <div v-for="product in topProducts" :key="product.id" class="product-item">
             <div class="product-info">
               <div class="product-name">{{ product.name }}</div>
-              <div class="product-sales">{{ formatCurrency(product.sales) }}</div>
+              <!-- <div class="product-sales">{{ formatCurrency(product.sales) }}</div> -->
             </div>
             <div class="progress-bar-container">
               <div class="progress-bar" :style="{ width: `${product.percentage}%` }"></div>
@@ -106,7 +99,7 @@
         </div>
       </div>
   
-      <div class="recent-orders">
+      <!-- <div class="recent-orders">
         <h2 class="section-title">Commandes récentes</h2>
         <div class="order-list">
           <div v-for="order in recentOrders" :key="order.id" class="order-item">
@@ -123,7 +116,40 @@
             </div>
           </div>
         </div>
+      </div> -->
+
+      <div class="recent-orders">
+  <h2 class="section-title">Commandes récentes</h2>
+  <div class="order-list">
+    <div v-for="order in allOrders" :key="order.id" class="order-item">
+      <div class="order-header">
+        <span class="order-id">#{{ order.DocumentNo }}</span>
+        <span
+          :class="[
+            'order-status',
+            order.DocStatus?.id
+              ? `status-${order.DocStatus.id.toLowerCase()}`
+              : 'status-unknown'
+          ]"
+        >
+          {{ order.DocStatus?.identifier || 'Inconnu' }}
+        </span>
       </div>
+      <div class="order-details">
+        <div class="order-customer">
+          {{ order.C_BPartner_ID?.identifier || 'Client inconnu' }}
+        </div>
+        <div class="order-date">
+          {{ formatDate(order.DateOrdered) }}
+        </div>
+        <div class="order-amount">
+          {{ formatCurrency(order.GrandTotal) }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
     </div>
   </template>
   
@@ -142,6 +168,7 @@ export default {
     return {
       token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
       businessPartners: [],
+      allOrders : [],
       orderCompleteList: [],
       orderLinelist: [],
       products: [],
@@ -265,6 +292,18 @@ export default {
             console.error('Erreur lors de la récupération des partenaires :', error);
         }
     },
+    
+  formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(); // ou format personnalisé
+  },
+  formatCurrency(amount) {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'USD', // ou utilise order.C_Currency_ID.identifier si dynamique
+    }).format(amount);
+  },
+
 
     async fetchOrdersComplete() {
         try {
@@ -281,6 +320,28 @@ export default {
             this.orderCompleteList = response.data.records || [];
             this.calculTotalOrder();
             this.orders = this.orderCompleteList.length;
+            await this.calculateProductSales()
+        } 
+        catch (error)
+        {
+            console.error('Erreur lors de la récupération des commandes :', error);
+        }
+    },
+
+    async fetchOrders() {
+        try {
+            const response = await axios.get('/api/v1/models/C_Order', {
+                headers: {
+                    Authorization: `Bearer ${this.token}`
+                },
+                
+            });
+            console.log('Toutes les commandes récupérées :', response.data.records);
+            // Vous pouvez ensuite stocker les commandes si besoin :
+            this.allOrders = response.data.records || [];
+            // this.calculTotalOrder();
+            // this.allOrders = this.orderCompleteList.length;
+            // await this.calculateProductSales()
         } 
         catch (error)
         {
@@ -338,6 +399,47 @@ export default {
         }
     },
 
+    async calculateProductSales() {
+  try {
+    const productSalesMap = {};
+
+    for (const order of this.orderCompleteList) {
+      const response = await axios.get('/api/v1/models/C_OrderLine', {
+        headers: {
+          Authorization: `Bearer ${this.token}`
+        },
+        params: {
+          'filter[C_Order_ID]': order.id
+        }
+      });
+
+      const orderLines = response.data.records || [];
+
+      for (const line of orderLines) {
+        const productId = line.M_Product_ID?.id;
+        const productName = line.M_Product_ID?.identifier || 'Produit inconnu';
+        const amount = parseFloat(line.PriceLimit) || 0;
+
+        if (!productSalesMap[productId]) {
+          productSalesMap[productId] = {
+            name: productName,
+            sales: 0
+          };
+        }
+
+        productSalesMap[productId].sales += amount;
+      }
+    }
+
+    // Stocker les résultats dans productSales (tableau)
+    this.productSales = Object.values(productSalesMap);
+
+  } catch (error) {
+    console.error('Erreur lors du calcul des ventes par produit :', error);
+  }
+},
+
+
     calculTotalOrder() {
   if (!this.orderCompleteList || this.orderCompleteList.length === 0) {
     this.totalSales = 0;
@@ -352,19 +454,28 @@ export default {
   this.totalSales = total;
   console.log("Total des ventes :", this.totalSales);
 },
-
-
-
-    formatCurrency(value) {
-      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value);
+goBack() {
+      this.$router.go(-1);
     },
-    formatDate(date) {
-      return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(date);
-    }
+   
+  formatDate(dateStr) {
+    if (!dateStr) return 'Date inconnue';
+    const date = new Date(dateStr);
+    return isNaN(date) ? 'Date invalide' : date.toLocaleDateString();
+  },
+  formatCurrency(amount) {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  },
+
+
   },
   mounted() {
     this.fetchBPartner();
     this.fetchOrdersComplete();
+    this.fetchOrders();
     // this.calculTotalOrder();
   }
 };

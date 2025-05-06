@@ -67,7 +67,7 @@
         :price="product.PriceStd || 0"
         :originalPrice="product.PriceList || product.PriceStd"
         :stock="product.StockQty || 0"
-        
+
         @add-to-cart="handleAddToCart"
       />
     </div>
@@ -176,13 +176,60 @@ export default {
       return this.panier.reduce((total, item) => total + (item.quantity || 1), 0);
     },
     
-    // Récupération des produits
-    async fetchProducts() {
+//     // Récupération des produits
+//     async fetchProducts() {
+//   this.loading = true;
+//   try {
+//     // Étape 1 : Récupérer les prix avec la version de PriceList filtrée
+//     const priceResponse = await axios.get('/api/v1/models/M_ProductPrice', {
+//       params: {
+//         'filter': `M_PriceList_Version_ID eq 104`
+//       },
+//       headers: {
+//         Authorization: `Bearer ${this.token}`
+//       }
+//     });
+
+//     const priceRecords = priceResponse.data.records || [];
+
+//     // Étape 2 : Extraire les IDs des produits ayant un prix dans cette version
+//     const productIds = priceRecords.map(price => price.M_Product_ID.id);
+
+//     // Étape 3 : Récupérer les produits correspondant à ces IDs
+//     const products = await Promise.all(productIds.map(async (productId) => {
+//       const productResponse = await axios.get(`/api/v1/models/M_Product/${productId}`, {
+//         headers: {
+//           Authorization: `Bearer ${this.token}`
+//         }
+//       });
+
+//       const product = productResponse.data;
+//       const stockQty = await this.fetchStockByProductId(product.id);
+//       const priceObj = priceRecords.find(p => p.M_Product_ID.id === product.id);
+//       const price = priceObj?.PriceStd || 0;
+
+//       return {
+//         ...product,
+//         StockQty: stockQty,
+//         PriceStd: price
+//       };
+//     }));
+
+//     this.products = products;
+//   } catch (error) {
+//     console.error('Erreur de récupération des produits:', error);
+//   } finally {
+//     this.loading = false;
+//   }
+// },
+
+async fetchProducts() {
       this.loading = true;
       try {
         const response = await axios.get('/api/v1/models/M_Product', {
           headers: {
             Authorization: `Bearer ${this.token}`
+
           }
         });
         const products = response.data.records || [];
@@ -204,6 +251,10 @@ export default {
         this.loading = false;
       }
     },
+
+
+
+
 
     // Récupération du stock pour un produit donné
     async fetchStockByProductId(productId) {
