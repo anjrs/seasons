@@ -161,6 +161,9 @@
               {{ formatCurrency(order.GrandTotal) }}
             </div>
           </div>
+          <button class="invoice-btn" @click="redirectToInvoice(order.id)">
+            Obtenir une facture
+          </button>
         </div>
       </div>
     </div>
@@ -574,6 +577,13 @@ methods: {
 
     this.averageOrder = totalAmount / this.orderCompleteList.length;
   },
+  redirectToInvoice(orderId) {
+    // Enregistrer l'ID de la commande dans le localStorage
+    localStorage.setItem('selectedOrderId', orderId);
+
+    // Rediriger vers la page Facture
+    this.$router.push('/facture');
+  },
 },
 mounted() {
   this.fetchBPartner();
@@ -665,6 +675,22 @@ display: flex;
 overflow-x: auto;
 gap: 0.5rem;
 padding-bottom: 0.5rem;
+}
+
+.invoice-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #4263eb;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.invoice-btn:hover {
+  background-color: #364fc7;
 }
 
 .period-btn {
