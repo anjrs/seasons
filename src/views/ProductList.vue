@@ -32,44 +32,69 @@
           class="search-input"
         />
       </div>
+      <!-- Remplacer le div category-tabs existant par celui-ci -->
       <div class="category-tabs">
         <button 
           class="category-btn" 
-          :class="{ active: activeCategory === 'all' }"
-          @click="setCategory('all')"
+          :class="{ active: activeCategory === null }"
+          @click="selectCategory(null)"
         >
           Tous
         </button>
         <button 
+          v-for="category in productCategories"
+          :key="category.id"
           class="category-btn" 
-          :class="{ active: activeCategory === 'popular' }"
-          @click="setCategory('popular')"
+          :class="{ active: activeCategory === category.id }"
+          @click="selectCategory(category.id)"
         >
-          Populaires
-        </button>
-        <button 
-          class="category-btn" 
-          :class="{ active: activeCategory === 'new' }"
-          @click="setCategory('new')"
-        >
-          Nouveautés
+          {{ category.name }}
         </button>
       </div>
+
+      <div class="filter-group">
+        <h3 class="filter-title">Tarifs disponibles</h3>
+      <div class="price-list-tabs">
+    <button 
+      class="price-btn" 
+      :class="{ active: activePriceList === null }"
+      @click="selectPriceList(null)"
+    >
+      Prix standard
+    </button>
+    <button 
+      v-for="priceList in priceLists" 
+      :key="priceList.id"
+      class="price-btn" 
+      :class="{ active: activePriceList === priceList.id }"
+      @click="selectPriceList(priceList.id)"
+    >
+      {{ priceList.name }}
+    </button>
+  </div>
+</div>
+
+      <!-- Ajouter ce message si aucun produit trouvé -->
+      <div v-if="!loading && filteredProducts.length === 0" class="no-products">
+        <i class="fas fa-search-minus"></i>
+        <p>Aucun produit ne correspond à votre recherche</p>
+        <button class="reset-btn" @click="resetFilters">Réinitialiser les filtres</button>
+</div>
     </div>
 
     <!-- Liste des produits -->
     <div class="product-grid">
-      <ProductCard
-        v-for="product in filteredProducts"
-        :key="product.id"
-        :id="product.id"
-        :name="product.Name"
-        :price="product.PriceStd || 0"
-        :originalPrice="product.PriceList || product.PriceStd"
-        :stock="product.StockQty || 0"
-
-        @add-to-cart="handleAddToCart"
-      />
+    <ProductCard
+      v-for="product in filteredProducts"
+      :key="product.id"
+      :id="product.id"
+      :name="product.Name"
+      :price="product.PriceStd || 0"
+      :originalPrice="product.PriceList || product.PriceStd"
+      :stock="product.StockQty || 0"
+      :discount="!!activePriceList"
+      @add-to-cart="handleAddToCart"
+/>
     </div>
 
     <!-- Menu de navigation inférieur -->
@@ -106,47 +131,73 @@ export default {
   name: 'ProductList',
   components: { ProductCard },
   data() {
-    return {
-      products: [],
-      token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
-      panier: [],
-      searchQuery: '',
-      activeCategory: 'all',
-      loading: true
-    };
+  return {
+    products: [],
+    token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
+    panier: [],
+    productCategories: [],
+    priceLists: [],  // Ajout des listes de prix
+    productPrices: {}, // Pour stocker les prix par produit et liste de prix
+    activeCategory: null,
+    activePriceList: null, // Ajout d'une liste de prix active
+    searchQuery: '',
+    loading: true
+  };
   },
   computed: {
     filteredProducts() {
-      if (!this.products) return [];
-      
-      let result = this.products;
-      
-      // Filtrer par recherche
-      if (this.searchQuery.trim() !== '') {
-        const query = this.searchQuery.toLowerCase();
-        result = result.filter(product => 
-          product.Name && product.Name.toLowerCase().includes(query)
-        );
-      }
-      
-      // Filtrer par catégorie
-      if (this.activeCategory !== 'all') {
-        if (this.activeCategory === 'popular') {
-          // Exemple: produits avec du stock sont considérés populaires
-          result = result.filter(product => product.StockQty > 0);
-        } else if (this.activeCategory === 'new') {
-          // Exemple: prendre les 5 derniers produits comme nouveautés
-          result = result.slice(0, 5);
-        }
-      }
-      
-      return result;
+  if (!this.products || this.products.length === 0) return [];
+  
+  let result = [...this.products];
+  
+  // Filtrer par recherche
+  if (this.searchQuery.trim() !== '') {
+    const query = this.searchQuery.toLowerCase();
+    result = result.filter(product => 
+      product.Name && product.Name.toLowerCase().includes(query)
+    );
+  }
+  
+  // Filtrer par catégorie
+  if (this.activeCategory !== null) {
+    result = result.filter(product => 
+      product.M_Product_Category_ID && 
+      product.M_Product_Category_ID.id === this.activeCategory
+    );
+  }
+  
+  // Filtrer par liste de prix
+  if (this.activePriceList !== null) {
+    result = result.filter(product => 
+      this.productPrices[product.id] && 
+      this.productPrices[product.id][this.activePriceList]
+    );
+  }
+  
+  // Appliquer le prix correspondant à la liste de prix active
+  result = result.map(product => {
+    const productCopy = { ...product };
+    
+    if (this.activePriceList !== null && 
+        this.productPrices[product.id] && 
+        this.productPrices[product.id][this.activePriceList]) {
+      const priceInfo = this.productPrices[product.id][this.activePriceList];
+      productCopy.PriceStd = priceInfo.PriceStd || 0;
+      productCopy.PriceList = priceInfo.PriceList || priceInfo.PriceStd || 0;
     }
+    
+    return productCopy;
+  });
+  
+  return result;
+},
   },
   created() {
-    this.loadCartFromStorage();
-    this.fetchProducts();
-  },
+  this.loadCartFromStorage();
+  this.fetchPriceLists(); // Ajout de la récuperation des listes de prix
+  this.fetchProducts();
+  this.fetchCategories();
+},
   methods: {
     // Chargement du panier depuis le localStorage
     loadCartFromStorage() {
@@ -176,82 +227,126 @@ export default {
       return this.panier.reduce((total, item) => total + (item.quantity || 1), 0);
     },
     
-//     // Récupération des produits
-//     async fetchProducts() {
-//   this.loading = true;
-//   try {
-//     // Étape 1 : Récupérer les prix avec la version de PriceList filtrée
-//     const priceResponse = await axios.get('/api/v1/models/M_ProductPrice', {
-//       params: {
-//         'filter': `M_PriceList_Version_ID eq 104`
-//       },
-//       headers: {
-//         Authorization: `Bearer ${this.token}`
-//       }
-//     });
-
-//     const priceRecords = priceResponse.data.records || [];
-
-//     // Étape 2 : Extraire les IDs des produits ayant un prix dans cette version
-//     const productIds = priceRecords.map(price => price.M_Product_ID.id);
-
-//     // Étape 3 : Récupérer les produits correspondant à ces IDs
-//     const products = await Promise.all(productIds.map(async (productId) => {
-//       const productResponse = await axios.get(`/api/v1/models/M_Product/${productId}`, {
-//         headers: {
-//           Authorization: `Bearer ${this.token}`
-//         }
-//       });
-
-//       const product = productResponse.data;
-//       const stockQty = await this.fetchStockByProductId(product.id);
-//       const priceObj = priceRecords.find(p => p.M_Product_ID.id === product.id);
-//       const price = priceObj?.PriceStd || 0;
-
-//       return {
-//         ...product,
-//         StockQty: stockQty,
-//         PriceStd: price
-//       };
-//     }));
-
-//     this.products = products;
-//   } catch (error) {
-//     console.error('Erreur de récupération des produits:', error);
-//   } finally {
-//     this.loading = false;
-//   }
-// },
-
-async fetchProducts() {
-      this.loading = true;
-      try {
-        const response = await axios.get('/api/v1/models/M_Product', {
-          headers: {
-            Authorization: `Bearer ${this.token}`
-
-          }
-        });
-        const products = response.data.records || [];
-
-        // Pour chaque produit, récupérer son stock et sa quantité
-        const productsWithStock = await Promise.all(products.map(async product => {
-          const stockQty = await this.fetchStockByProductId(product.id);
-          const price = await this.fetchPriceByProductId(product.id);
-          return {
-            ...product,
-            StockQty: stockQty,
-            PriceStd: price
-          };
-        }));
-        this.products = productsWithStock;
-      } catch (error) {
-        console.error('Erreur de récupération des produits:', error);
-      } finally {
-        this.loading = false;
+    async fetchCategories() {
+  try {
+    const response = await axios.get('/api/v1/models/M_Product_Category', {
+      headers: {
+        Authorization: `Bearer ${this.token}`
       }
-    },
+    });
+    
+    const categories = response.data.records || [];
+    this.productCategories = categories.map(cat => ({
+      id: cat.id,
+      name: cat.Name || cat.identifier
+    }));
+  } catch (error) {
+    console.error('Erreur lors de la récupération des catégories:', error);
+  }
+},
 
+selectCategory(categoryId) {
+  this.activeCategory = categoryId;
+},
+
+resetFilters() {
+  this.searchQuery = '';
+  this.activeCategory = null;
+  this.activePriceList = null;
+},
+
+// Modifier la méthode fetchProducts pour inclure les catégories
+async fetchProducts() {
+  this.loading = true;
+  try {
+    const response = await axios.get('/api/v1/models/M_Product', {
+      headers: {
+        Authorization: `Bearer ${this.token}`
+      }
+    });
+    const products = response.data.records || [];
+
+    const productsWithStock = await Promise.all(products.map(async product => {
+      const stockQty = await this.fetchStockByProductId(product.id);
+      const price = await this.fetchPriceByProductId(product.id);
+      return {
+        ...product,
+        StockQty: stockQty,
+        PriceStd: price,
+        // Assurez-vous d'avoir le nom de la catégorie facilement accessible
+        categoryName: product.M_Product_Category_ID?.identifier || ''
+      };
+    }));
+    this.products = productsWithStock;
+  } catch (error) {
+    console.error('Erreur de récupération des produits:', error);
+  } finally {
+    this.loading = false;
+  }
+},
+
+// Ajout de la méthode pour récupérer les listes de prix
+async fetchPriceLists() {
+  try {
+    const response = await axios.get('/api/v1/models/M_PriceList_Version', {
+      headers: {
+        Authorization: `Bearer ${this.token}`
+      }
+    });
+    
+    this.priceLists = (response.data.records || []).map(list => ({
+      id: list.id,
+      name: list.Name || `Liste ${list.id}`
+    }));
+    
+    // Charger les prix pour chaque liste
+    for (const list of this.priceLists) {
+      await this.fetchProductPrices(list.id);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des listes de prix:', error);
+    this.priceLists = [];
+  }
+},
+
+// Ajout de la méthode pour récupérer les prix des produits par liste de prix
+async fetchProductPrices(priceListId) {
+  try {
+    const response = await axios.get('/api/v1/models/M_ProductPrice', {
+      headers: {
+        Authorization: `Bearer ${this.token}`
+      },
+      params: {
+        $filter: `M_PriceList_Version_ID eq ${priceListId}`
+      }
+    });
+    
+    const prices = response.data.records || [];
+    
+    // Organiser les prix par produit et liste de prix
+    prices.forEach(price => {
+      const productId = price.M_Product_ID;
+      
+      if (!this.productPrices[productId]) {
+        this.productPrices[productId] = {};
+      }
+      
+      this.productPrices[productId][priceListId] = {
+        PriceStd: price.PriceStd || 0,
+        PriceList: price.PriceList || price.PriceStd || 0
+      };
+      console.log('Données de prix organisées :', this.productPrices);
+    });
+    
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des prix pour la liste ${priceListId}:`, error);
+  }
+},
+
+// Ajout de la méthode pour sélectionner une liste de prix
+selectPriceList(priceListId) {
+  this.activePriceList = priceListId;
+},
 
 
 
@@ -540,6 +635,67 @@ body {
   animation: spin 1s linear infinite;
 }
 
+.filter-group {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.filter-title {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.price-list-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.price-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  background-color: #fff;
+  border-radius: 1.5rem;
+  font-size: 0.85rem;
+  color: #6c757d;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.price-btn.active {
+  background-color: #28a745;
+  color: #fff;
+}
+
+/* Indicateurs visuels de filtres actifs */
+.filters-active {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  background-color: #e9ecef;
+  padding: 0.25rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  color: #495057;
+}
+
+.filter-tag i {
+  margin-left: 0.25rem;
+  cursor: pointer;
+  color: #6c757d;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -569,6 +725,51 @@ body {
   .product-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+/* Ajouter ces nouveaux styles */
+.no-products {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.no-products i {
+  font-size: 2rem;
+  color: #dee2e6;
+}
+
+.reset-btn {
+  padding: 0.5rem 1rem;
+  background-color: #4263eb;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.reset-btn:hover {
+  background-color: #364fc7;
+}
+
+/* Amélioration du style des catégories pour le défilement */
+.category-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.category-tabs::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 @media (min-width: 992px) {

@@ -307,78 +307,98 @@ export default
         },
         
         async creerCommande(businessPartnerId, locationId = null) {
-            try {
-                if (!businessPartnerId) throw new Error('ID du partenaire commercial non fourni');
-                if (!this.panier || this.panier.length === 0) throw new Error('Le panier est vide');
+    try {
+        if (!businessPartnerId) throw new Error('ID du partenaire commercial non fourni');
+        if (!this.panier || this.panier.length === 0) throw new Error('Le panier est vide');
 
-                // Obtenir les adresses du partenaire si l'ID de location n'est pas fourni
-                let locationToUse = locationId;
-                
-                if (!locationToUse) {
-                    let locations = await this.getPartnerLocations(businessPartnerId);
-                    
-                    if (locations.length === 0) {
-                        await this.creerPartnerLocation(businessPartnerId);
-                        locations = await this.getPartnerLocations(businessPartnerId);
-                    }
-                    
-                    if (locations.length === 0) {
-                        throw new Error(`Impossible de créer une adresse pour le partenaire commercial ID: ${businessPartnerId}`);
-                    }
-                    
-                    const defaultLocation = locations.find(loc => loc.isDefault) || locations[0];
-                    locationToUse = defaultLocation.id;
-                }
-
-                // Étape 1 : Création de la commande (sans lignes)
-                const orderData = {
-                    C_BPartner_ID: { id: businessPartnerId },
-                    C_BPartner_Location_ID: { id: locationToUse },
-                    C_DocTypeTarget_ID: { id: 135 }, // Type de document pour les commandes clients
-                    M_Warehouse_ID: { id: 103 }, // ID de l'entrepôt
-                };
-
-                const response = await axios.post('/api/v1/models/C_Order', orderData, {
-                    headers: {
-                        Authorization: `Bearer ${this.token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const orderId = response.data.id;
-                console.log('Commande créée avec succès, ID:', orderId);
-
-                // Étape 2 : Ajouter les lignes à la commande
-                for (let i = 0; i < this.panier.length; i++) {
-                    const item = this.panier[i];
-                    const orderLineData = {
-                        C_Order_ID: { id: orderId },
-                        M_Product_ID: { id: item.id },
-                        QtyEntered: item.quantity,
-                        PriceList: item.PriceStd || item.price, // Utilise PriceStd s'il existe, sinon price
-                        PriceActual: item.PriceStd || item.price,
-                        PriceEntered: item.PriceStd || item.price,
-                        Line: (i + 1) * 10
-                    };
-                    console.log(`Prix: ${item.PriceStd || item.price}, Quantité: ${item.quantity}`);
-
-                    await axios.post('/api/v1/models/C_OrderLine', orderLineData, {
-                        headers: {
-                            Authorization: `Bearer ${this.token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    console.log(`Ligne ${i + 1} ajoutée à la commande.`);
-                }
-
-                return orderId;
-
-            } catch (error) {
-                console.error('Erreur lors de la création de la commande:', error.response?.data || error.message);
-                throw error;
+        // Obtenir les adresses du partenaire si l'ID de location n'est pas fourni
+        let locationToUse = locationId;
+        
+        if (!locationToUse) {
+            let locations = await this.getPartnerLocations(businessPartnerId);
+            
+            if (locations.length === 0) {
+                await this.creerPartnerLocation(businessPartnerId);
+                locations = await this.getPartnerLocations(businessPartnerId);
             }
-        },
+            
+            if (locations.length === 0) {
+                throw new Error(`Impossible de créer une adresse pour le partenaire commercial ID: ${businessPartnerId}`);
+            }
+            
+            const defaultLocation = locations.find(loc => loc.isDefault) || locations[0];
+            locationToUse = defaultLocation.id;
+        }
+
+        // Récupérer la dernière liste de prix
+        const priceListResponse = await axios.get('/api/v1/models/M_PriceList', {
+            params: {
+                $orderby: 'Created desc',
+                $filter: 'IsActive eq true'
+            },
+            headers: {
+                Authorization: `Bearer ${this.token}`
+            }
+        });
+
+        let priceLists = priceListResponse.data.records || [];
+        if (priceLists.length === 0) {
+            throw new Error("Aucune liste de prix active trouvée");
+        }
+        
+        const latestPriceList = priceLists[0];
+        console.log('Utilisation de la liste de prix:', latestPriceList.Name, 'ID:', latestPriceList.id);
+
+        // Étape 1 : Création de la commande (sans lignes)
+        const orderData = {
+            C_BPartner_ID: { id: businessPartnerId },
+            C_BPartner_Location_ID: { id: locationToUse },
+            M_PriceList_ID: { id: latestPriceList.id }, // Utiliser l'ID de la dernière liste de prix
+            C_DocTypeTarget_ID: { id: 1000000 }, // Type de document pour les commandes clients
+            M_Warehouse_ID: { id: 103 }, // ID de l'entrepôt
+        };
+
+        const response = await axios.post('/api/v1/models/C_Order', orderData, {
+            headers: {
+                Authorization: `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const orderId = response.data.id;
+        console.log('Commande créée avec succès, ID:', orderId);
+
+        // Étape 2 : Ajouter les lignes à la commande
+        for (let i = 0; i < this.panier.length; i++) {
+            const item = this.panier[i];
+            const orderLineData = {
+                C_Order_ID: { id: orderId },
+                M_Product_ID: { id: item.id },
+                QtyEntered: item.quantity,
+                PriceList: item.PriceStd || item.price, // Utilise PriceStd s'il existe, sinon price
+                PriceActual: item.PriceStd || item.price,
+                PriceEntered: item.PriceStd || item.price,
+                Line: (i + 1) * 10
+            };
+            console.log(`Prix: ${item.PriceStd || item.price}, Quantité: ${item.quantity}`);
+
+            await axios.post('/api/v1/models/C_OrderLine', orderLineData, {
+                headers: {
+                    Authorization: `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log(`Ligne ${i + 1} ajoutée à la commande.`);
+        }
+
+        return orderId;
+
+    } catch (error) {
+        console.error('Erreur lors de la création de la commande:', error.response?.data || error.message);
+        throw error;
+    }
+},
 
         updateQuantity(id, newQuantity) {
             const item = this.panier.find(p => p.id === id);
@@ -463,6 +483,8 @@ export default
                 console.error('Erreur lors de la validation de la commande:', error);
             }
         },
+
+        
         
         annulerCommande() {
             this.showCheckoutForm = false;

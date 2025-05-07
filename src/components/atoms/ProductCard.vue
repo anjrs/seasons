@@ -4,7 +4,7 @@
     <div class="product-info">
       <h3 class="product-name">{{ name }}</h3>
       <div class="product-price">
-        <span class="current-price">{{ price }} Ar</span>
+        <span class="current-price">{{ price }} $</span>
         <!-- <span class="original-price" v-if="hasDiscount">{{ formattedOriginalPrice }}</span> -->
       </div>
       <div class="product-stock" :class="stockLevel">
