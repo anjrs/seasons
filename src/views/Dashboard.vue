@@ -18,6 +18,7 @@
     </div>
   </header>
 
+  <!-- chiffres vente et commandes -->
     <div class="stats-cards">
       <div class="stat-card">
         <div class="stat-icon sales-icon">
@@ -45,6 +46,7 @@
         </div>
       </div>
 
+      <!-- clients -->
       <div class="stat-card">
         <div class="stat-icon customers-icon">
           <i class="fas fa-users"></i>
@@ -72,6 +74,7 @@
       </div>
     </div>
 
+    <!-- Produits -->
     <div class="chart-section">
       <div class="chart-card">
         <h2 class="chart-title">Répartition des ventes par produit</h2>
@@ -80,8 +83,24 @@
         </div>
       </div>
     </div>
+
+    <div class="products-section">
+      <h2 class="section-title">Performance des produits</h2>
+      <div class="product-list">
+        <div v-for="product in topProducts" :key="product.id" class="product-item">
+          <div class="product-info">
+            <div class="product-name">{{ product.name }}</div>
+            <!-- <div class="product-sales">{{ formatCurrency(product.sales) }}</div> -->
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" :style="{ width: `${product.percentage}%` }"></div>
+          </div>
+          <div class="product-percentage">{{ product.percentage }}%</div>
+        </div>
+      </div>
+    </div>
     
-    <!-- Nouvelle section Top Produits -->
+    <!-- tops -->
     <div class="top-products-section">
       <h2 class="section-title">Top 5 Produits les plus vendus</h2>
       <div class="top-list">
@@ -113,22 +132,6 @@
             </div>
           </div>
           <div class="top-percentage">{{ client.percentage }}%</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="products-section">
-      <h2 class="section-title">Performance des produits</h2>
-      <div class="product-list">
-        <div v-for="product in topProducts" :key="product.id" class="product-item">
-          <div class="product-info">
-            <div class="product-name">{{ product.name }}</div>
-            <!-- <div class="product-sales">{{ formatCurrency(product.sales) }}</div> -->
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar" :style="{ width: `${product.percentage}%` }"></div>
-          </div>
-          <div class="product-percentage">{{ product.percentage }}%</div>
         </div>
       </div>
     </div>
@@ -196,39 +199,21 @@ data() {
     averageOrder: 0,
     // Nouveaux tableaux pour les tops clients et produits
     topClients: [],
-    salesData: [
-      { day: 'Lun', sales: 4200 },
-      { day: 'Mar', sales: 5100 },
-      { day: 'Mer', sales: 6200 },
-      { day: 'Jeu', sales: 7800 },
-      { day: 'Ven', sales: 8300 },
-      { day: 'Sam', sales: 7300 },
-      { day: 'Dim', sales: 3960 }
-    ],
-    productSales: [
-      { name: 'Vêtements', sales: 18600 },
-      { name: 'Électronique', sales: 12400 },
-      { name: 'Décoration', sales: 6500 },
-      { name: 'Accessoires', sales: 5360 }
-    ],
-    recentOrders: [
-      { id: '12345', customer: 'Sophie Martin', date: new Date(2025, 4, 4), amount: 289.99, status: 'Livré' },
-      { id: '12344', customer: 'Jean Dupont', date: new Date(2025, 4, 3), amount: 124.50, status: 'En cours' },
-      { id: '12343', customer: 'Marie Lefèvre', date: new Date(2025, 4, 3), amount: 542.80, status: 'En cours' },
-      { id: '12342', customer: 'Thomas Bernard', date: new Date(2025, 4, 2), amount: 89.99, status: 'Livré' },
-      { id: '12341', customer: 'Emma Rousseau', date: new Date(2025, 4, 2), amount: 199.95, status: 'Annulé' }
-    ]
+    productSales: [],
+    recentOrders: []
   };
 },
 computed: {
+  //calcul pour les tops
   topProducts() {
-    // Déjà calculé à partir des productSales
-    const total = this.productSales.reduce((sum, p) => sum + p.sales, 0);
+   const total = this.productSales.reduce((sum, p) => sum + p.sales, 0);
     return this.productSales.map(p => ({
       ...p,
       percentage: Math.round((p.sales / total) * 100)
     })).sort((a, b) => b.sales - a.sales);
   },
+
+  //graphe
   salesChartData() {
     return {
       labels: this.salesData.map(item => item.day),
@@ -297,6 +282,39 @@ computed: {
   }
 },
 methods: {
+  //simple function
+ 
+  goBack() {
+    this.$router.go(-1);
+  },
+ 
+  formatDate(dateStr) {
+    if (!dateStr) return 'Date inconnue';
+    const date = new Date(dateStr);
+    return isNaN(date) ? 'Date invalide' : date.toLocaleDateString();
+  },
+  
+  formatCurrency(amount) {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  },
+
+  calculateAverageOrder() {
+    if (!this.orderCompleteList.length) {
+      this.averageOrder = 0;
+      return;
+    }
+
+    const totalAmount = this.orderCompleteList.reduce((sum, order) => {
+      return sum + (order.GrandTotal || 0);
+    }, 0);
+
+    this.averageOrder = totalAmount / this.orderCompleteList.length;
+  },
+
+  //selection simple
   async fetchBPartner() {
     try {
       const response = await axios.get('/api/v1/models/C_BPartner', {
@@ -312,41 +330,6 @@ methods: {
     }
   },
   
-  formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(); // ou format personnalisé
-  },
-  
-  formatCurrency(amount) {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'USD', // ou utilise order.C_Currency_ID.identifier si dynamique
-    }).format(amount);
-  },
-
-  async fetchOrdersComplete() {
-    try {
-      const response = await axios.get('/api/v1/models/C_Order', {
-        headers: {
-          Authorization: `Bearer ${this.token}`
-        },
-        params: {
-          'filter[DocStatus]': 'CO'
-        }
-      });
-      console.log('Commandes récupérées :', response.data.records);
-      this.orderCompleteList = response.data.records || [];
-      this.calculTotalOrder();
-      this.calculateAverageOrder(); 
-      this.orders = this.orderCompleteList.length;
-      await this.calculateProductSales();
-      await this.calculateTopClients();
-    } 
-    catch (error) {
-      console.error('Erreur lors de la récupération des commandes :', error);
-    }
-  },
-
   async fetchOrders() {
     try {
       const response = await axios.get('/api/v1/models/C_Order', {
@@ -362,7 +345,6 @@ methods: {
     }
   },
 
-  // Récupération des produits
   async fetchProducts() {
     this.loading = true;
     try {
@@ -390,8 +372,32 @@ methods: {
       this.loading = false;
     }
   },
+  
+  //get with specificite
+  async fetchOrdersComplete() {
+    try {
+      const response = await axios.get('/api/v1/models/C_Order', {
+        headers: {
+          Authorization: `Bearer ${this.token}`
+        },
+        params: {
+          'filter[DocStatus]': 'CO'
+        }
+      });
+      console.log('Commandes récupérées :', response.data.records);
+      this.orderCompleteList = response.data.records || [];
+      this.calculTotalOrder();
+      this.calculateAverageOrder(); 
+      this.orders = this.orderCompleteList.length;
+      await this.calculateProductSales();
+      await this.calculateTopClients();
+    } 
+    catch (error) {
+      console.error('Erreur lors de la récupération des commandes :', error);
+    }
+  },
 
-  async fetchOrderLinesByIdOrder(orderId) {
+ async fetchOrderLinesByIdOrder(orderId) {
     try {
       const response = await axios.get('/api/v1/models/C_OrderLine', {
         headers: {
@@ -409,6 +415,7 @@ methods: {
     }
   },
   
+  //maths
   async calculateProductSales() {
     try {
       const productSalesMap = {};
@@ -548,35 +555,7 @@ methods: {
     console.log("Total des ventes :", this.totalSales);
   },
   
-  goBack() {
-    this.$router.go(-1);
-  },
  
-  formatDate(dateStr) {
-    if (!dateStr) return 'Date inconnue';
-    const date = new Date(dateStr);
-    return isNaN(date) ? 'Date invalide' : date.toLocaleDateString();
-  },
-  
-  formatCurrency(amount) {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  },
-
-  calculateAverageOrder() {
-    if (!this.orderCompleteList.length) {
-      this.averageOrder = 0;
-      return;
-    }
-
-    const totalAmount = this.orderCompleteList.reduce((sum, order) => {
-      return sum + (order.GrandTotal || 0);
-    }, 0);
-
-    this.averageOrder = totalAmount / this.orderCompleteList.length;
-  },
   redirectToInvoice(orderId) {
     // Enregistrer l'ID de la commande dans le localStorage
     localStorage.setItem('selectedOrderId', orderId);

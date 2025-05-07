@@ -11,63 +11,108 @@ export default
         this.loadBusinessPartners(); // Charger les partenaires dès le montage
     },
     data() {
-        return {
-            panier: [],
-            token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
-            showCheckoutForm: false,
-            orderCreated: false,
-            orderMessage: '',
-            businessPartner: {
-                name: '',
-                email: '',
-                phone: '',
-                address: ''
-            },
-            // Nouvelles propriétés pour le sélecteur de business partners
-            businessPartners: [],
-            selectedPartnerId: '',
-            selectedPartner: null,
-            showNewPartnerForm: false,
-            partnerLocations: [],
-            selectedLocationId: ''
-        };
+      return {
+      panier: [],
+      token: 'eyJraWQiOiJpZGVtcGllcmUiLCJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTdXBlclVzZXIiLCJBRF9DbGllbnRfSUQiOjExLCJBRF9Vc2VyX0lEIjoxMDAsIkFEX1JvbGVfSUQiOjEwMiwiQURfT3JnX0lEIjo1MDAwMSwiTV9XYXJlaG91c2VfSUQiOjUwMDAyLCJBRF9MYW5ndWFnZSI6ImVuX1VTIiwiQURfU2Vzc2lvbl9JRCI6MTAwMDA0MywiaXNzIjoiaWRlbXBpZXJlLm9yZyIsImV4cCI6MTc0OTI1ODYzNn0.TpfZF5aVRxN6aiscvEPU0Ydh1BgVogdOmx_VZ4AEoBwDfvBekQHMMqwCFVrRz_WPSwaULgUMaGDspUtNfGWfFQ',
+      showCheckoutForm: false,
+      orderCreated: false,
+      orderMessage: '',
+      businessPartner: {
+        name: '',
+        email: '',
+        phone: '',
+        address: ''
+      },
+      businessPartners: [],
+      selectedPartnerId: '',
+      selectedPartner: null,
+      showNewPartnerForm: false,
+      partnerLocations: [],
+      selectedLocationId: '',
+      currentPriceType: 'PriceStd', // Type de prix actuellement utilisé
+    };
     },
     computed: {
-        totalPanier() {
-            return this.panier.reduce((acc, item) => acc + item.PriceStd * item.quantity, 0);
-        },
-        formValid() {
-            if (this.showNewPartnerForm) {
-                // Validation pour un nouveau partenaire
-                return this.businessPartner.name && 
-                       this.businessPartner.email && 
-                       this.businessPartner.address;
-            } else {
-                // Validation pour un partenaire existant
-                return this.selectedPartnerId && this.selectedLocationId;
-            }
+      totalQuantity() {
+        // Calcule la quantité totale des produits dans le panier
+        const total = this.panier.reduce((acc, item) => acc + item.quantity, 0);
+        console.log(`Quantité totale calculée : ${total}`);
+        return total;
+      },
+      totalPanier() {
+        return this.panier.reduce((acc, item) => acc + this.getPrice(item) * item.quantity, 0);
+      },
+      formValid() {
+        if (this.showNewPartnerForm) {
+        // Validation pour un nouveau partenaire
+          return this.businessPartner.name && this.businessPartner.email && this.businessPartner.address;
+        } 
+        else {
+          // Validation pour un partenaire existant
+          return this.selectedPartnerId && this.selectedLocationId;
         }
+      }
     },
 
     methods: {
-        getPanier() {
-            try {
-                const stored = localStorage.getItem('panier');
-                if (stored) {
-                    const parsed = JSON.parse(stored);
-                    this.panier = parsed;
-                    console.table(this.panier);
-                } else {
-                    console.log('Panier vide.');
-                }
-            } catch (error) {
-                console.error('Erreur lors de la récupération du panier :', error);
-            }
-        },
+    //PANIER    
+    getPanier() {
+      try {
+        const stored = localStorage.getItem('panier');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          this.panier = parsed;
+          console.table(this.panier);
+          this.updatePriceType(); // Mettre à jour le type de prix au chargement
+        } else {
+          console.log('Panier vide.');
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération du panier :', error);
+      }
+    },
+    //PRICE
+    updatePriceType() {
+      const totalQuantity = this.totalQuantity;
 
-        async loadBusinessPartners() {
-            this.businessPartners = await this.getBusinessPartners();
-        },
+      let newPriceType = 'PriceStd';
+      if (totalQuantity <= 10) {
+        newPriceType = 'PriceList';
+      } else if (totalQuantity <= 20) {
+        newPriceType = 'PriceLimit';
+      }
+      console.log(`Quantité totale : ${totalQuantity}, Nouveau type de prix : ${newPriceType}`);
+      if (newPriceType !== this.currentPriceType) {
+        this.currentPriceType = newPriceType;
+        this.notifyPriceChange(newPriceType);
+      }
+    },
+    
+    notifyPriceChange(priceType) {
+      let message = '';
+      if (priceType === 'PriceList') {
+        message = 'Le prix utilisé est maintenant le prix de liste (PriceList).';
+      } else if (priceType === 'PriceStd') {
+        message = 'Le prix utilisé est maintenant le prix standard (PriceStd).';
+      } else if (priceType === 'PriceLimit') {
+        message = 'Le prix utilisé est maintenant le prix limite (PriceLimit).';
+      }
+      alert(message);
+    },
+    
+    getPrice(item) {
+      if (this.currentPriceType === 'PriceList') {
+        return item.PriceList || item.PriceStd || item.PriceLimit || 0;
+      } else if (this.currentPriceType === 'PriceStd') {
+        return item.PriceStd || item.PriceList || item.PriceLimit || 0;
+      } else if (this.currentPriceType === 'PriceLimit') {
+        return item.PriceLimit || item.PriceStd || item.PriceList || 0;
+      }
+      return 0;
+    },
+
+    
+
 
         async getBusinessPartners() {
             try {
@@ -400,28 +445,28 @@ export default
     }
 },
 
-        updateQuantity(id, newQuantity) {
-            const item = this.panier.find(p => p.id === id);
-            if (item) {
-                item.quantity = newQuantity;
-                localStorage.setItem('panier', JSON.stringify(this.panier));
-            }
-        },
+        // updateQuantity(id, newQuantity) {
+        //     const item = this.panier.find(p => p.id === id);
+        //     if (item) {
+        //         item.quantity = newQuantity;
+        //         localStorage.setItem('panier', JSON.stringify(this.panier));
+        //     }
+        // },
         
-        removeItem(id) {
-            this.panier = this.panier.filter(p => p.id !== id);
-            localStorage.setItem('panier', JSON.stringify(this.panier));
-        },
+        // removeItem(id) {
+        //     this.panier = this.panier.filter(p => p.id !== id);
+        //     localStorage.setItem('panier', JSON.stringify(this.panier));
+        // },
         
-        viderPanier() {
-            this.panier = [];
-            localStorage.removeItem('panier');
-            console.log('Panier vidé.');
-        },
+        // viderPanier() {
+        //     this.panier = [];
+        //     localStorage.removeItem('panier');
+        //     console.log('Panier vidé.');
+        // },
         
-        checkout() {
-            this.showCheckoutForm = true;
-        },
+        // checkout() {
+        //     this.showCheckoutForm = true;
+        // },
         
         async validerCommande() {
             try {
@@ -484,7 +529,32 @@ export default
             }
         },
 
-        
+        //SMOLL FUNCTIONS
+    updateQuantity(id, newQuantity) {
+      const item = this.panier.find(p => p.id === id);
+      if (item) {
+        item.quantity = newQuantity;
+        localStorage.setItem('panier', JSON.stringify(this.panier));
+        this.updatePriceType(); // Mettre à jour le type de prix après modification de la quantité
+      }
+    },
+    removeItem(id) {
+      this.panier = this.panier.filter(p => p.id !== id);
+      localStorage.setItem('panier', JSON.stringify(this.panier));
+      this.updatePriceType(); // Mettre à jour le type de prix après suppression d'un article
+    },
+    viderPanier() {
+      this.panier = [];
+      localStorage.removeItem('panier');
+      this.updatePriceType(); // Réinitialiser le type de prix après vidage du panier
+      console.log('Panier vidé.');
+    },
+    checkout() {
+      this.showCheckoutForm = true;
+    },
+    annulerCommande() {
+      this.showCheckoutForm = false;
+    },
         
         annulerCommande() {
             this.showCheckoutForm = false;
